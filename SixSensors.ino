@@ -58,15 +58,24 @@ void loop() {
 void avoid(int distances[]) {
   //Check if we can continue straight
   if(distances[2] > frontMaxDist && distances[3] > frontMaxDist) {
+    
     Serial.print("Go straight");
   }
   //Check if we can turn left
-  else if (distances[0] > sideMaxDist && distances[1] > sideMaxDist) {
-    Serial.print("Go left");
+  else if (distances[1] > sideMaxDist) {
+    if (distance[0] < sideMaxDist){
+      Serial.print("Go 45 degrees left);
+    } else{
+      Serial.print("Go 90 degrees left");
+    }
   }
   //Check if we can turn right
   else if(distances[4] > sideMaxDist && distances[5] > sideMaxDist) {
-    Serial.print("Go right");
+    if (distance[5] < sideMaxDist){
+      Serial.print("Go 45 degrees right);
+    } else{
+      Serial.print("Go 90 degrees right");
+    }
   }
   //If there are objects in all directions, stop
   else {
