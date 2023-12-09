@@ -1,4 +1,7 @@
 #include <SoftwareSerial.h>
+//If the laser gives a reading above this distance, we recognize a pothole
+const float maxLaserDistance = 1.11;
+
 #define rxPin 2
 #define txPin 3
 SoftwareSerial mySerial = SoftwareSerial(rxPin,txPin);//Define software serial, 3 is TX, 2 is RX
@@ -45,7 +48,7 @@ void loop()
           Serial.print("Distance = ");
           Serial.print(distance,3);
           Serial.println(" M");
-          if(distance > 1.11) 
+          if(distance > maxLaserDistance) 
           {
             Serial.print("Pothole detected");
           }
