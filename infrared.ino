@@ -45,7 +45,14 @@ void loop()
           Serial.print("Distance = ");
           Serial.print(distance,3);
           Serial.println(" M");
-        }
+          if(distance > 1.11) 
+          {
+            Serial.print("Pothole detected");
+          }
+          else 
+          {
+            Serial.print("No pothole detected");
+          }
       }
       else
       {
