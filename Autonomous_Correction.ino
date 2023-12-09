@@ -13,6 +13,7 @@ const int echoPin_g = 7;
 // defines variables
 long duration;
 int distance;
+int breadCrumb[3] = {150, 20, 10};
 
 void setup() {
   pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
@@ -49,13 +50,24 @@ void loop() {
     Serial.print(": ");
     Serial.print(distance);
     Serial.print(", ");
-    sensors[i - 7] = distance;
+    sensors[i - 7] = distance;    
   }
   Serial.println("");
-  avoid(sensors);
-
+  Serial.print("BreadCrumb");
+  for (int i = 0; i < 3; i++){
+    Serial.print(breadCrumb[i]);
+    Serial.print(", ");
+  }
+  Serial.println(" ");
+ Serial.print("AdjBreadCrumb");
+  int adjBreadCrumb[3];
+  avoid_2(sensors,breadCrumb,adjBreadCrumb);
+  for (int i = 0; i < 3; i++){
+    Serial.print(adjBreadCrumb[i]);
+    Serial.print(", ");
+  }
   Serial.println("");
-  
+
   delay(1000);
 }
 
@@ -108,4 +120,41 @@ void avoid(int distances[]) {
   else {
     Serial.print("Stop");
   }
+}
+
+void avoid_2(int Sensor[], int breadcrumb[3], int result[3]) {
+    // Grab the breadcrumb
+    int Angle = breadcrumb[0];
+    int Distance = breadcrumb[1];
+    int Speed = breadcrumb[2];
+
+    // Determine which angle for the breadcrumb
+    int Direction[] = {0, -30, 30, -60, 60, -90, 90, -120, 120};
+    int SensorIdx[] = {0, -1, 1, -2, 2, -3, 3, -4, 4};
+
+    // Determine which sensor we need to start with
+    int startSens = (Angle + 14) / 30;
+    Serial.print("StartSens");
+    Serial.println(startSens);
+    for (int i = 0; i < (sizeof(SensorIdx)/sizeof(SensorIdx[0])); i++) {
+        if (Angle % 30 == 0 && i == 0 && Angle < 150 && Angle > -150) {
+            if (Sensor[startSens] > Distance && Sensor[startSens + 1] > Distance) {
+                result[0] = Angle;
+                result[1] = Distance;
+                result[2] = Speed;
+                return;
+            }
+        }
+        if ((startSens + SensorIdx[i] >= 0) && (startSens + SensorIdx[i] < 6)) {
+            if (Sensor[startSens + SensorIdx[i]] > Distance) {
+                result[0] = Angle + Direction[i];
+                result[1] = Distance;
+                result[2] = Speed;
+                return;
+            }
+        }
+    }
+    result[0] = -1;
+    result[1] = -1;
+    result[2] = -1;
 }
