@@ -31,7 +31,7 @@ void loop() {
   mySerial_2.print(buff);
   while(1){ 
     mySerial_1.listen();
-    delay(50);
+    delay(1000);
     if(mySerial_1.available()>0) 
     {
       
@@ -56,17 +56,15 @@ void loop() {
         
           float distance0 = 0;
           distance0=(data_laser_1[3]-0x30)*100+(data_laser_1[4]-0x30)*10+(data_laser_1[5]-0x30)*1+(data_laser_1[7]-0x30)*0.1+(data_laser_1[8]-0x30)*0.01+(data_laser_1[9]-0x30)*0.001;
-          Serial.print("Distance = ");
-          Serial.print(distance0,3);
-          Serial.println(" M");
+          Serial.println("---------------");
 
           if(distance0 > maxLaserDistance) 
           {
-            Serial.print("Pothole detected");
+            Serial.println("POTHOLE DETECTED (R)");
           }
           else 
           {
-            Serial.print("No pothole detected");
+            Serial.println("No pothole detected on Right");
           }
         }
       }
@@ -77,7 +75,7 @@ void loop() {
     
     
     mySerial_2.listen();
-    delay(50);
+    delay(1000);
     if(mySerial_2.available()>0) 
     {
       
@@ -102,17 +100,15 @@ void loop() {
         
           float distance1 = 0;
           distance1=(data_laser_2[3]-0x30)*100+(data_laser_2[4]-0x30)*10+(data_laser_2[5]-0x30)*1+(data_laser_2[7]-0x30)*0.1+(data_laser_2[8]-0x30)*0.01+(data_laser_2[9]-0x30)*0.001;
-          Serial.print("Distance2 = ");
-          Serial.print(distance1,3);
-          Serial.println(" M");
+          Serial.println("---------------");
           
           if(distance1 > maxLaserDistance) 
           {
-            Serial.print("Pothole detected");
+            Serial.println("POTHOLE DETECTED (L)");
           }
           else 
           {
-            Serial.print("No pothole detected");
+            Serial.println("No pothole detected on Left");
           }
 
           
