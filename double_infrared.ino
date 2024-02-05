@@ -31,105 +31,52 @@ void loop() {
   //mySerial_1.print(buff);
   //mySerial_2.print(buff);
 
-
-  checkLaserOne();
-  checkLaserTwo();
+  checkLaser(mySerial_1, data_laser_1, "Left");
+  checkLaser(mySerial_2, data_laser_2, "Right");
 }
 
+void checkLaser(SoftwareSerial myLaser, unsigned char laserData[], String laserSide) {
 
-
-void checkLaserOne() {
-  mySerial_1.listen();
+  myLaser.listen();
   delay(waitTime);
-  if(mySerial_1.available()>0) 
+  if(myLaser.available()>0) 
   {
 
     delay(50);
     for(int i=0;i<11;i++){
-      data_laser_1[i]=mySerial_1.read();
+      laserData[i] = myLaser.read();
     }
         
     unsigned char Check = 0;
         
     for(int i=0;i<10;i++){
-      Check=Check+data_laser_1[i];
+      Check=Check+laserData[i];
     }
         
     Check=~Check+1;
     
-    if(data_laser_1[10]==Check){
-      if(data_laser_1[3]=='E'&& data_laser_1[4]=='R' && data_laser_1[5]=='R'){
+    if(laserData[10]==Check){
+      if(laserData[3]=='E'&& laserData[4]=='R' && laserData[5]=='R'){
         Serial.println("Out of range");
       }
       else{
       
         float distance0 = 0;
-        distance0 = (data_laser_1[3]-0x30)*100+(data_laser_1[4]-0x30)*10+(data_laser_1[5]-0x30)*1+(data_laser_1[7]-0x30)*0.1+(data_laser_1[8]-0x30)*0.01+(data_laser_1[9]-0x30)*0.001;
+        distance0 = (laserData[3]-0x30)*100+(laserData[4]-0x30)*10+(laserData[5]-0x30)*1+(laserData[7]-0x30)*0.1+(laserData[8]-0x30)*0.01+(laserData[9]-0x30)*0.001;
         Serial.println("---------------");
 
         if(distance0 > maxLaserDistance) 
         {
-          Serial.println("POTHOLE DETECTED (R)");
+          Serial.println("POTHOLE DETECTED (" + laserSide + ")");
         }
         else 
         {
-          Serial.println("No pothole detected on Right");
+          Serial.println("No pothole detected on " + laserSide);
         }
       }
     }
     else{
-      Serial.println("Invalid Data!");
+      Serial.println("Invalid Data on " + laserSide);
     }
   }
 }
-
-void checkLaserTwo() {
-  mySerial_2.listen();
-    delay(waitTime);
-    if(mySerial_2.available()>0) 
-    {
-      
-      delay(50);
-      for(int i=0;i<11;i++){
-        data_laser_2[i]=mySerial_2.read();
-      }
-      
-      unsigned char Check=0;
-      
-      for(int i=0;i<10;i++){
-        Check=Check+data_laser_2[i];
-      }
-      
-      Check=~Check+1;
-      
-      if(data_laser_2[10]==Check){
-        if(data_laser_2[3]=='E'&& data_laser_2[4]=='R' && data_laser_2[5]=='R'){
-          Serial.println("Out of range");
-        }
-        else{
-        
-          float distance1 = 0;
-          distance1=(data_laser_2[3]-0x30)*100+(data_laser_2[4]-0x30)*10+(data_laser_2[5]-0x30)*1+(data_laser_2[7]-0x30)*0.1+(data_laser_2[8]-0x30)*0.01+(data_laser_2[9]-0x30)*0.001;
-          Serial.println("---------------");
-          
-          if(distance1 > maxLaserDistance) 
-          {
-            Serial.println("POTHOLE DETECTED (L)");
-          }
-          else 
-          {
-            Serial.println("No pothole detected on Left");
-          }
-
-          
-        }
-      }
-      else{
-        Serial.println("Invalid Data for mySerial_2");
-      }
-    }
-}
-
-
-
-
