@@ -2,10 +2,10 @@
 //If the laser gives a reading above this distance, we recognize a pothole
 const float maxLaserDistance = 1.11;
 
-#define rxPin1 2
-#define txPin1 3
-#define rxPin2 4
-#define txPin2 5
+const int rxPin1 2
+const int txPin1 3
+const int rxPin2 4
+const int txPin2 5
 SoftwareSerial mySerial_1 = SoftwareSerial(rxPin1, txPin1); // RX, TX
 SoftwareSerial mySerial_2 = SoftwareSerial(rxPin2, txPin2);   // RX, TX
 
