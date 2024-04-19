@@ -3,6 +3,7 @@ const int frontMaxDist = 200;
 const int sideMaxDist = 30;
 
 // defines pins numbers
+// p = purple, b = blue, o = orange, y = yellow, w = white, g = green
 const int trigPin = 13;
 const int echoPin_p = 12;
 const int echoPin_b = 11;
@@ -10,7 +11,7 @@ const int echoPin_o = 10;
 const int echoPin_y = 9;
 const int echoPin_w = 8;
 const int echoPin_g = 7;
-const int echoPin_h = 6; //Ready signal pin
+const int readyPin = 6; //Ready signal pin
 // defines variables
 long duration;
 int distance; 
@@ -18,7 +19,7 @@ int breadCrumb[3] = {160, 20, 10};
 
 void setup() {
   pinMode(trigPin, OUTPUT); // Sets the trigPin as an Output
-  pinMode(echoPin_h, OUTPUT); // Sets pin 6 as output to be used a Ready Signal
+  pinMode(readPin, OUTPUT); // Sets pin 6 as output to be used a Ready Signal
   pinMode(echoPin_p, INPUT); // Sets the echoPin as an Input
   pinMode(echoPin_b, INPUT);
   pinMode(echoPin_o, INPUT);
@@ -32,7 +33,7 @@ void loop() {
   // Clears the trigPin
   Serial.println("New Iteration");
   int sensors[6];
-  digitalWrite(echoPin_h, LOW); //Set Ready signal to LOW
+  digitalWrite(readyPin, LOW); //Set Ready signal to LOW
 
   for(int i = 7; i < 13; i++){
     digitalWrite(trigPin, LOW);
@@ -71,7 +72,7 @@ void loop() {
     Serial.print(", ");
   }
   Serial.println("");
-  digitalWrite(echoPin_h, HIGH) //set Ready signal to HIGH (We're done processing breadcrumb)
+  digitalWrite(readyPin, HIGH); //set Ready signal to HIGH (We're done processing breadcrumb)
 
   delay(1000);
 }
