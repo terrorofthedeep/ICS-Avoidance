@@ -45,64 +45,7 @@ float getVelocity(float Acc, float Vo){
 // ================================================================
 
 void setup() {
-    // join I2C bus (I2Cdev library doesn't do this automatically)
-    #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-        Wire.begin();
-        Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
-    #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-        Fastwire::setup(400, true);
-    #endif
-
-    // initialize serial communication
-    Serial.begin(115200);
-    while (!Serial); // wait for Leonardo enumeration, others continue immediately
-
-    // initialize device
-    mpu.initialize();
-    
-    // verify connection
-    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
-    
-
-    // load and configure the DMP
-    //Serial.println(F("Initializing DMP..."));
-    devStatus = mpu.dmpInitialize();
-
-    // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(81);
-    mpu.setYGyroOffset(-9);
-    mpu.setZGyroOffset(52);
-    mpu.setZAccelOffset(1439); // 1688 factory default for my test chip
-    
-    // make sure it worked (returns 0 if so)
-    if (devStatus == 0) {
-        // Calibration Time: generate offsets and calibrate our MPU6050
-        mpu.CalibrateAccel(6);
-        mpu.CalibrateGyro(6);
-        mpu.PrintActiveOffsets();
-        // turn on the DMP, now that it's ready
-        Serial.println(F("Enabling DMP..."));
-        mpu.setDMPEnabled(true);
-
-        // enable Arduino interrupt detection
-        Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
-        //Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
-        Serial.println(F(")..."));
-        //attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
-        
-    } else {
-        // ERROR!
-        // 1 = initial memory load failed
-        // 2 = DMP configuration updates failed
-        // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
-    }
-
-    // configure LED for output
-    //pinMode(LED_PIN, OUTPUT);
-  
+  gyroSetup();
 }
 
 
@@ -112,62 +55,125 @@ void setup() {
 // ================================================================
 
 void loop() {
-    // read a packet from FIFO
-    float ax = 0;
-    float ay = 0;
-    float Vx = 0;
-    float Vy = 0;
-    float Px = 0;
-    float Py = 0;
-    float breadcrumb[2]; 
+  gyroLoop();
+}
 
-    if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
-        
-        #ifdef OUTPUT_READABLE_YAWPITCHROLL
-            // display Euler angles in degrees
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            Serial.print("ypr\t");
-            Serial.print(ypr[0] * 180/M_PI);
-            Serial.print("\t");
-            Serial.print(ypr[1] * 180/M_PI);
-            Serial.print("\t");
-            Serial.println(ypr[2] * 180/M_PI);
-        #endif
 
-        #ifdef OUTPUT_READABLE_REALACCEL
-            // display real acceleration, adjusted to remove gravity
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetAccel(&aa, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            Serial.print("areal\t");
-            Serial.print(aaReal.x/ 16384.0);
-            Serial.print("\t");
-            Serial.print(aaReal.y/ 16384.0);
-            Serial.print("\t");
-            Serial.println(aaReal.z/ 16384.0);
-        #endif
 
-        ax = (aaReal.x/ 16384.0) * 9.8;
-        ay = (aaReal.y/ 16384.0) * 9.8;
-        Vx = getVelocity(Vo_x, ax);
-        Vy = getVelocity(Vo_y, ay);
-        
-        Px = getPosition(Po_x, Vx, ax);
-        Py = getPosition(Po_y, Vy, ay);
-        
-        //Update initial values 
-        Vo_x = Vx;
-        Vo_y = Vy;
-        Po_x = Px;
-        Po_y = Py;
+void gyroSetup() {
+  // join I2C bus (I2Cdev library doesn't do this automatically)
+  #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
+      Wire.begin();
+      Wire.setClock(400000); // 400kHz I2C clock. Comment this line if having compilation difficulties
+  #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
+      Fastwire::setup(400, true);
+  #endif
 
-        //Pack breadcrumb and send 
-        breadcrumb[0] = sqrt(sq(Vx)+ sq(Vy));
-        breadcrumb[1] = ypr[0];
-        
-        delay(10);
-    }
+  // initialize serial communication
+  Serial.begin(115200);
+  while (!Serial); // wait for Leonardo enumeration, others continue immediately
+
+  // initialize device
+  mpu.initialize();
+  
+  // verify connection
+  Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+  
+
+  // load and configure the DMP
+  //Serial.println(F("Initializing DMP..."));
+  devStatus = mpu.dmpInitialize();
+
+  // supply your own gyro offsets here, scaled for min sensitivity
+  mpu.setXGyroOffset(81);
+  mpu.setYGyroOffset(-9);
+  mpu.setZGyroOffset(52);
+  mpu.setZAccelOffset(1439); // 1688 factory default for my test chip
+  
+  // make sure it worked (returns 0 if so)
+  if (devStatus == 0) {
+      // Calibration Time: generate offsets and calibrate our MPU6050
+      mpu.CalibrateAccel(6);
+      mpu.CalibrateGyro(6);
+      mpu.PrintActiveOffsets();
+      // turn on the DMP, now that it's ready
+      Serial.println(F("Enabling DMP..."));
+      mpu.setDMPEnabled(true);
+
+      // enable Arduino interrupt detection
+      Serial.print(F("Enabling interrupt detection (Arduino external interrupt "));
+      //Serial.print(digitalPinToInterrupt(INTERRUPT_PIN));
+      Serial.println(F(")..."));
+      //attachInterrupt(digitalPinToInterrupt(INTERRUPT_PIN), dmpDataReady, RISING);
+      
+  } else {
+      // ERROR!
+      // 1 = initial memory load failed
+      // 2 = DMP configuration updates failed
+      // (if it's going to break, usually the code will be 1)
+      Serial.print(F("DMP Initialization failed (code "));
+      Serial.print(devStatus);
+      Serial.println(F(")"));
+  }
+}
+
+void gyroLoop() {
+  // read a packet from FIFO
+  float ax = 0;
+  float ay = 0;
+  float Vx = 0;
+  float Vy = 0;
+  float Px = 0;
+  float Py = 0;
+  float breadcrumb[2]; 
+
+  if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
+      
+      #ifdef OUTPUT_READABLE_YAWPITCHROLL
+          // display Euler angles in degrees
+          mpu.dmpGetQuaternion(&q, fifoBuffer);
+          mpu.dmpGetGravity(&gravity, &q);
+          mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+          Serial.print("ypr\t");
+          Serial.print(ypr[0] * 180/M_PI);
+          Serial.print("\t");
+          Serial.print(ypr[1] * 180/M_PI);
+          Serial.print("\t");
+          Serial.println(ypr[2] * 180/M_PI);
+      #endif
+
+      #ifdef OUTPUT_READABLE_REALACCEL
+          // display real acceleration, adjusted to remove gravity
+          mpu.dmpGetQuaternion(&q, fifoBuffer);
+          mpu.dmpGetAccel(&aa, fifoBuffer);
+          mpu.dmpGetGravity(&gravity, &q);
+          mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+          Serial.print("areal\t");
+          Serial.print(aaReal.x/ 16384.0);
+          Serial.print("\t");
+          Serial.print(aaReal.y/ 16384.0);
+          Serial.print("\t");
+          Serial.println(aaReal.z/ 16384.0);
+      #endif
+
+      ax = (aaReal.x/ 16384.0) * 9.8;
+      ay = (aaReal.y/ 16384.0) * 9.8;
+      Vx = getVelocity(Vo_x, ax);
+      Vy = getVelocity(Vo_y, ay);
+      
+      Px = getPosition(Po_x, Vx, ax);
+      Py = getPosition(Po_y, Vy, ay);
+      
+      //Update initial values 
+      Vo_x = Vx;
+      Vo_y = Vy;
+      Po_x = Px;
+      Po_y = Py;
+
+      //Pack breadcrumb and send 
+      breadcrumb[0] = sqrt(sq(Vx)+ sq(Vy));
+      breadcrumb[1] = ypr[0];
+      
+      delay(10);
+  }
 }
