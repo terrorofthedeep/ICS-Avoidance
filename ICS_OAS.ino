@@ -207,6 +207,15 @@ void check_US(int distances[]){
   distances[3] = sonar_4.ping_cm(); // Store distance from sonar 4
   distances[4] = sonar_5.ping_cm(); // Store distance from sonar 5
   distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
+
+  for(int i = 0; i < 6; i++) {
+    Serial.print("Distance ");
+    Serial.print(i);
+    Serial.print(":");
+    Serial.print(distances[i]);
+    Serial.print(", ");
+  }
+  Serial.println("");
 }
 
 /* 
