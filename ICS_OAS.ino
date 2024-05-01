@@ -88,10 +88,12 @@ void setup() {
     #endif
 
     // initialize serial communication
-    Serial.begin(115200);
+    Serial.begin(9600);
     while (!Serial); // wait for Leonardo enumeration, others continue immediately
 
     // initialize device
+    
+    //exit(0);
     mpu.initialize();
     
     // verify connection
@@ -99,7 +101,6 @@ void setup() {
 
     // load and configure the DMP
     devStatus = mpu.dmpInitialize();
-
     // supply your own gyro offsets here, scaled for min sensitivity
     mpu.setXGyroOffset(81);
     mpu.setYGyroOffset(-9);
@@ -131,7 +132,7 @@ void setup() {
         Serial.println(F(")"));
     }
 
-  Serial.begin(9600); // Starts the serial communication
+  //Serial.begin(9600); // Starts the serial communication
   Serial1.begin(9600);   // Initialize hardware serial port 1 (IR)
   Serial2.begin(9600);   // Initialize hardware serial port 2 (IR)
 }
@@ -141,6 +142,7 @@ void loop(){
   check_US(distance_US);                          // Check all 6 US sensors
   checkLaser(Serial1, data_laser_1, "Left");  // Check Left IR Laser
   checkLaser(Serial2, data_laser_2, "Right"); // Check Right IR Laser
+  check_gyro();
 }
 
 /* 
@@ -202,12 +204,12 @@ Output: VOID
 */
 void check_US(int distances[]){
   distances[0] = sonar_1.ping_cm(); // Store distance from sonar 1
+  Serial.println(sonar_1.ping_cm());
   distances[1] = sonar_2.ping_cm(); // Store distance from sonar 2
   distances[2] = sonar_3.ping_cm(); // Store distance from sonar 3
   distances[3] = sonar_4.ping_cm(); // Store distance from sonar 4
   distances[4] = sonar_5.ping_cm(); // Store distance from sonar 5
   distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
-
   for(int i = 0; i < 6; i++) {
     Serial.print("Distance ");
     Serial.print(i);
@@ -226,16 +228,19 @@ Output: VOID
 void check_gyro(){
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
 
-    // OUtput Yaw Pitch Roll    
+    // Output Yaw Pitch Roll    
     // display Euler angles in degrees
     mpu.dmpGetQuaternion(&q, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
     // YAW
+    Serial.print("Yaw:");
     Serial.print(ypr[0] * 180/M_PI);
-    // pTICh       
+    // PITCH     
+    Serial.print(", Pitch: ");  
     Serial.print(ypr[1] * 180/M_PI);
     // ROLL        
+    Serial.print(", Roll: ");
     Serial.println(ypr[2] * 180/M_PI);
 
 
@@ -245,10 +250,13 @@ void check_gyro(){
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
     // X
+    Serial.print("X Accel:");
     Serial.print(aaReal.x/ 16384.0);
     // Y
+    Serial.print(", Y Accel:");
     Serial.print(aaReal.y/ 16384.0);
     // Z
+    Serial.print(", Z Accel:");
     Serial.println(aaReal.z/ 16384.0);
 
     ax = (aaReal.x/ 16384.0) * 9.8;
