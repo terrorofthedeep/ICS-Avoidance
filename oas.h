@@ -14,6 +14,8 @@
 char buff[4] = {0x80, 0x06, 0x03, 0x77};
 unsigned char data_laser_1[11] = {0}; // Holds sensor data
 unsigned char data_laser_2[11] = {0};
+int distance_IR_1 = 0;
+int distance_IR_1 = 0;
 // --------------------------------------------------------------------
 
 // ---------- Ultra-Sonic initial variable declarations ---------------
@@ -44,6 +46,9 @@ NewPing sonar_3(trigPin_y, echoPin_3, frontMaxDist);
 NewPing sonar_4(trigPin_o, echoPin_4, frontMaxDist);
 NewPing sonar_5(trigPin_b, echoPin_5, frontMaxDist);
 NewPing sonar_6(trigPin_p, echoPin_6, sideMaxDist);
+
+// Array to store US data
+int distance_US[6] = {0};
 // --------------------------------------------------------------------
 
 // --------------------- MPU6050 variable setup -----------------------
@@ -78,9 +83,13 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 
 void setup();
 
-//void checkLaser(HardwareSerial& mySerial, unsigned char laserData[], String laserSide);
+int check_IR(HardwareSerial& mySerial);
 
-//void check_US();
+void check_US();
+
+void detectAboveObstacles();
+
+void detectIngroundObstacles();
 
 void check_gyro();
 
@@ -93,3 +102,5 @@ void trackMovement();
 void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll)
 
 void updateVelocity(float deltaVx, float deltaVy)
+
+void avoid();
