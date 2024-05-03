@@ -1,3 +1,5 @@
+#include "oas.h"
+
 // ================================================================
 // ===               POSITION MODULE FUNCTIONS                  ===
 // ================================================================
@@ -130,6 +132,165 @@ void updateVelocity(float deltaVx, float deltaVy) {
         Vx = (Vx / speed) * MAX_SPEED;
         Vy = (Vy / speed) * MAX_SPEED;
     }
+}
+
+// ================================================================
+// ===                     Ultra Sonic Reroute                  ===
+// ================================================================
+void check_US(){
+  distances[0] = sonar_1.ping_cm(); // Store distance from sonar 1
+  distances[1] = sonar_2.ping_cm(); // Store distance from sonar 2
+  distances[2] = sonar_3.ping_cm(); // Store distance from sonar 3
+  distances[3] = sonar_4.ping_cm(); // Store distance from sonar 4
+  distances[4] = sonar_5.ping_cm(); // Store distance from sonar 5
+  distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
+}
+
+void detectAboveObstacles() {
+  //If path is valid, do nothing
+  //Else If sensors 1-3 are clear, slightly left
+  //Else If sensors 1-2 are clear, significantly left
+  //Else If only sensor 1 is clear, hard left
+  //Vice versa for sensors 4-6
+  //If all sensors are detecting obstacles, stop
+  
+  if(distances[2] > frontMaxDist && distances[3] > frontMaxDist) { 
+    //Path is valid
+    return;
+  }
+  else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist && distances[2] > frontMaxDist) {
+    //The left side is all clear
+    breadcrumb[1] = 80;
+    angle = & 80;
+    speed *= & 0.9;
+  }
+  else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist) {
+    //The leftmost two are clear
+    breadcrumb[1] = 70;
+    angle = & 70;
+    speed *= & 0.70;
+  }
+  else if(distances[0] > sideMaxDist) {
+    //Only the leftmost sensor is clear
+    breadcrumb[1] = 60;
+    angle = & 60;
+    speed *= & 0.40;
+  }
+
+  else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist && distances[3] > frontMaxDist) {
+    //The right side is all clear
+    breadcrumb[1] = 100;
+    angle = & 100;
+    speed *= & 0.90;
+  }
+  else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist) {
+    //The rightmost two are clear
+    breadcrumb[1] = 110;
+    angle = & 110;
+    speed *= & 0.70;
+  }
+  else if(distances[5] > sideMaxDist) {
+    //Only the rightmost sensor is clear
+    breadcrumb[1] = 120;
+    angle = & 120;
+    speed *= & 0.40;
+  }
+  else {
+    //If there is no alternate path, stop
+    breadcrumb[0] = 0;
+    speed = & 0;
+  }
+
+}
+
+// ================================================================
+// ===                      Infrared Reroute                    ===
+// ================================================================
+int check_IR(HardwareSerial& mySerial) {
+  delay(10);
+  mySerial.write(buff, 4); // Send data to sensor 1
+  //Serial2.write(buff, 4); // Send data to sensor 2
+
+  
+  if (mySerial.available() > 0) // Determine whether there is data to read on serial 1
+  {
+    delay(50);
+    for (int i = 0; i < 11; i++)
+    {
+      laserData[i] = mySerial.read();
+    }
+
+    unsigned char Check = 0;
+    for (int i = 0; i < 10; i++)
+    {
+      Check = Check + laserData[i];
+    }
+    Check = ~Check + 1;
+    if (laserData[10] == Check)
+    {
+      if (laserData[3] == 'E' && laserData[4] == 'R' && laserData[5] == 'R')
+      {
+        //Serial.println(laserSide + "Sensor Out of range");
+        distance_IR = -1; // Not valid
+      }
+      else
+      {
+        //float distance = 0;
+        distance_IR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
+        //Serial.print(laserSide + "Sensor - Distance = ");
+        //Serial.print(distance, 3);
+        //Serial.println(" M");
+      }
+    }
+    else
+    {
+      Serial.println(laserSide + " Sensor - Invalid Data!");
+    }
+  }
+
+  delay(20);
+}
+
+void detectIngroundObstacles() {
+  //1 = left 2 = right
+  // Check if left and right are both valid
+  // 
+  if(distance_IR_1 > maxLaserDistance && distance_IR_2 > maxLaserDistance) {
+    // Valid path
+    return; 
+  }
+  else if(distance_IR_1 > maxLaserDistance && distance_IR_2 <= maxLaserDistance){
+    // Turn left
+    angle = & 75;
+    speed *= & 0.75;
+  }
+  else if(distance_IR_1 <= maxLaserDistance && distance_IR_2 > maxLaserDistance){
+    // Turn right
+    angle = & 105;
+    speed *= & 0.75;
+
+  }else (distance_IR_1 <= maxLaserDistance && distance_IR_2 <= maxLaserDistance){
+    // stop
+    speed = & 0;
+  }
+
+}
+// ================================================================
+// ===                         Avoid                            ===
+// ================================================================
+
+void avoid() {
+  check_gyro();
+  trackMovement();
+
+  distance_IR_1 = check_IR(Serial1);
+  distance_IR_2 = check_IR(Serial2);
+  detectIngroundobstacles();
+
+  check_US();
+  detectAboveObstacles();
+  
+  
 }
 
 // ================================================================
