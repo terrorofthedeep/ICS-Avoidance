@@ -67,45 +67,51 @@ float getVelocity(float Acc, float Vo){
 void trackMovement() {
   // angle : Max Left (60) - Max Right (120)
   // speed : 0 - 255 (Max Speed is 70 MPH
-    static float angleHistory[ARRAY_SIZE];
-    static float speedHistory[ARRAY_SIZE];
-    static int index = 0;
+  static float angleHistory[ARRAY_SIZE];
+  static float speedHistory[ARRAY_SIZE];
+  static int index = 0;
 
-    // Store the current angle and speed in the local arrays
-    angleHistory[index] = ypr[0];
-    speedHistory[index] = currBC[0];
-    index = (index + 1) % ARRAY_SIZE; // Wrap around the array
+  check_gyro();
 
-    // Compare the actual movement (from simulated values) with the expected movement (from angle and speed)
-    //float expectedDistance = speedHistory[index] * 1.0; // Assuming a time interval of 1 second
-    //float actualDistance = sqrt(sq(Vx) + sq(Vy));
-    float expectedDistance = speedHistory[index] * T_INT;
-    float actualDistance = currBC[0] * T_INT; // Use the current speed (currBC[0]) as the actual distance traveled
-    float distanceError = actualDistance - expectedDistance;
+  // Store the current angle and speed in the local arrays
+  angleHistory[index] = ypr[0];
+  speedHistory[index] = currBC[0];
+  index = (index + 1) % ARRAY_SIZE; // Wrap around the array
 
-    float expectedAngle = angleHistory[index];
-    //float actualAngle = ypr[0];
-    float actualAngle = ypr[0] * 180.0 / M_PI; // Convert ypr[0] from radians to degrees
-    float angleError = actualAngle - expectedAngle;
+  // Compare the actual movement (from simulated values) with the expected movement (from angle and speed)
+  //float expectedDistance = speedHistory[index] * 1.0; // Assuming a time interval of 1 second
+  //float actualDistance = sqrt(sq(Vx) + sq(Vy));
+  float expectedDistance = speedHistory[index] * T_INT;
+  float actualDistance = currBC[0] * T_INT; // Use the current speed (currBC[0]) as the actual distance traveled
+  float distanceError = actualDistance - expectedDistance;
 
-    // Course correction using vector addition of angle error and new desired angle
-    float newDesiredAngle = expectedAngle + angleError;
+  float expectedAngle = angleHistory[index];
+  //float actualAngle = ypr[0];
+  float actualAngle = ypr[0] * 180.0 / M_PI; // Convert ypr[0] from radians to degrees
+  float angleError = actualAngle - expectedAngle;
 
-    // Normalize the new desired angle to the range [60, 120] degrees
-    newDesiredAngle = fmod(newDesiredAngle, M_PI); // Wrap to [0, PI]
-    if (newDesiredAngle < M_PI / 3.0) {
-        newDesiredAngle += 2.0 * M_PI / 3.0; // Shift to [60, 120] range
-    }
+  // Course correction using vector addition of angle error and new desired angle
+  float newDesiredAngle = expectedAngle + angleError;
 
-    // Set the new desired angle and speed
-    currBC[1] = newDesiredAngle;
-    currBC[0] = speedHistory[index]; // Maintain the same speed for now
+  // Normalize the new desired angle to the range [60, 120] degrees
+  newDesiredAngle = fmod(newDesiredAngle, M_PI); // Wrap to [0, PI]
+  if (newDesiredAngle < M_PI / 3.0) {
+    newDesiredAngle += 2.0 * M_PI / 3.0; // Shift to [60, 120] range
+  }
 
-    // Print the updated values for verification
-    Serial.print("Angle (deg): ");
-    Serial.print(currBC[1] * 180.0 / M_PI);
-    Serial.print(" Speed: ");
-    Serial.println(currBC[0]);
+  // Set the new desired angle and speed
+  currBC[1] = newDesiredAngle;
+  currBC[0] = speedHistory[index]; // Maintain the same speed for now
+
+  // Change the global angle and speed
+  angle = & currBC[1] * 180.0 / M_PI; // convert to degrees
+  speed = & currBC[0];
+
+  // Print the updated values for verification
+  Serial.print("Angle (deg): ");
+  Serial.print(currBC[1] * 180.0 / M_PI);
+  Serial.print(" Speed: ");
+  Serial.println(currBC[0]);
 }
 
 void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll) {
