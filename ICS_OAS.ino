@@ -198,13 +198,63 @@ void checkLaser(HardwareSerial& mySerial, unsigned char laserData[], String lase
 }
 
 /* 
-Purpose: to get all the distances from the US sensors
+Purpose: Checks current path, reroutes if invalid
 Input:  distances : int array of the distances from respective US sensor
-Output: VOID
+Output: Modifies breadcrumb angle/speed, returns void
 */
 void check_US(int distances[]){
+  //If path is valid, do nothing
+  //Else If sensors 1-3 are clear, slightly left
+  //Else If sensors 1-2 are clear, significantly left
+  //Else If only sensor 1 is clear, hard left
+  //Vice versa for sensors 4-6
+  //If all sensors are detecting obstacles, stop
+  
+  updateDistances(distances);
+  
+  if(distances[2] > frontMaxDist && distances[3] > frontMaxDist) { 
+    //Path is valid
+    return;
+  }
+  else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist && distances[2] > frontMaxDist) {
+    //The left side is all clear
+    breadcrumb[1] = 80;
+  }
+  else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist) {
+    //The leftmost two are clear
+    breadcrumb[1] = 70;
+  }
+  else if(distances[0] > sideMaxDist) {
+    //Only the leftmost sensor is clear
+    breadcrumb[1] = 60;
+  }
+
+  else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist && distances[3] > frontMaxDist) {
+    //The right side is all clear
+    breadcrumb[1] = 100;
+  }
+  else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist) {
+    //The rightmost two are clear
+    breadcrumb[1] = 110;
+  }
+  else if(distances[5] > sideMaxDist) {
+    //Only the rightmost sensor is clear
+    breadcrumb[1] = 120;
+  }
+  else {
+    //If there is no alternate path, stop
+    breadcrumb[0] = 0;
+  }
+}
+
+
+/* 
+Purpose: Updates sensor distances
+Input:  distances : int array of the distances from respective US sensor
+Output: Modifies distances, returns void
+*/
+void updateDistances(int distances[]) {
   distances[0] = sonar_1.ping_cm(); // Store distance from sonar 1
-  Serial.println(sonar_1.ping_cm());
   distances[1] = sonar_2.ping_cm(); // Store distance from sonar 2
   distances[2] = sonar_3.ping_cm(); // Store distance from sonar 3
   distances[3] = sonar_4.ping_cm(); // Store distance from sonar 4
@@ -222,8 +272,8 @@ void check_US(int distances[]){
 
 /* 
 Purpose: to get speed and angle 
-Input:  
-Output: VOID
+Input: No parameters, accesses global variables
+Output: Prints yaw, pitch, roll, acceleration, returns void
 */
 void check_gyro(){
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
