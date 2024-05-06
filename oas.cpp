@@ -33,12 +33,12 @@ int breadcrumb[2] = {0};
 
 // Create sonar class attributed to each indivdual sensor
 // Most left is sonar_1 and Most Right is sonar_6
-NewPing sonar_1(trigPin_g, echoPin_1, sideMaxDist);
-NewPing sonar_2(trigPin_w, echoPin_2, frontMaxDist);
-NewPing sonar_3(trigPin_y, echoPin_3, frontMaxDist);
-NewPing sonar_4(trigPin_o, echoPin_4, frontMaxDist);
-NewPing sonar_5(trigPin_b, echoPin_5, frontMaxDist);
-NewPing sonar_6(trigPin_p, echoPin_6, sideMaxDist);
+NewPing sonar_1(trigPin_g, echoPin_1, USRange);
+NewPing sonar_2(trigPin_w, echoPin_2, USRange);
+NewPing sonar_3(trigPin_y, echoPin_3, USRange);
+NewPing sonar_4(trigPin_o, echoPin_4, USRange);
+NewPing sonar_5(trigPin_b, echoPin_5, USRange);
+NewPing sonar_6(trigPin_p, echoPin_6, USRange);
 
 // Array to store US data
 int distance_US[6] = {0};
@@ -198,59 +198,33 @@ void check_US(){
 }
 
 void detectAboveObstacles(int &angle, int &speed) {
-  //If path is valid, do nothing
-  //Else If sensors 1-3 are clear, slightly left
-  //Else If sensors 1-2 are clear, significantly left
-  //Else If only sensor 1 is clear, hard left
-  //Vice versa for sensors 4-6
-  //If all sensors are detecting obstacles, stop
-  
-  if(distances[2] > frontMaxDist && distances[3] > frontMaxDist) { 
-    //Path is valid
-    return;
-  }
-  else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist && distances[2] > frontMaxDist) {
-    //The left side is all clear
-    breadcrumb[1] = 80;
-    angle = 80;
-    speed *= 0.9;
-  }
-  else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist) {
-    //The leftmost two are clear
-    breadcrumb[1] = 70;
-    angle = 70;
-    speed *= 0.70;
-  }
-  else if(distances[0] > sideMaxDist) {
-    //Only the leftmost sensor is clear
-    breadcrumb[1] = 60;
-    angle = 60;
-    speed *= 0.40;
-  }
+  // Determine which angle for the breadcrumb
+  int Direction[] = {0, -5, 5, -10, 10, -15, 15, -20, 20, -30, 30};
+  int SensorIdx[] = {0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5};
 
-  else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist && distances[3] > frontMaxDist) {
-    //The right side is all clear
-    breadcrumb[1] = 100;
-    angle = 100;
-    speed *= 0.90;
+  // Determine which sensor we need to start with
+  int startSens = (Angle) / 30;
+  //Serial.print("StartSens");
+  //Serial.println(startSens + 1);
+  for (int i = 0; i < 11; i++) {
+    if (angle % 30 == 0 && i == 0 && angle < 150 && angle > -150) {
+      //If the angle is in between 2 sensors, check both
+      if (distance_US[startSens] > maxDist && distance_US[startSens - 1] > maxDist) {
+        //result[0] = angle;
+        //result[2] = speed;
+        return;
+      }
+    }
+    else if ((startSens + SensorIdx[i] >= 0) && (startSens + SensorIdx[i] < 5)) {
+      if (distance_US[startSens + SensorIdx[i]] > maxDist) {
+        angle += Direction[i];
+        //Reduce speed by 5% per sensor 
+        speed *= (1 - (abs(SensorIdx) * .05));
+        return;
+      }
+    }
   }
-  else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist) {
-    //The rightmost two are clear
-    breadcrumb[1] = 110;
-    angle = 110;
-    speed *= 0.70;
-  }
-  else if(distances[5] > sideMaxDist) {
-    //Only the rightmost sensor is clear
-    breadcrumb[1] = 120;
-    angle = 120;
-    speed *= 0.40;
-  }
-  else {
-    //If there is no alternate path, stop
-    breadcrumb[0] = 0;
-    speed = 0;
-  }
+  speed = 0;
 
 }
 
