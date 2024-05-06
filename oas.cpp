@@ -203,7 +203,7 @@ void detectAboveObstacles(int &angle, int &speed) {
   int SensorIdx[] = {0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5};
 
   // Determine which sensor we need to start with
-  int startSens = (Angle) / 30;
+  int startSens = (angle) / 30;
   //Serial.print("StartSens");
   //Serial.println(startSens + 1);
   for (int i = 0; i < 11; i++) {
@@ -219,7 +219,7 @@ void detectAboveObstacles(int &angle, int &speed) {
       if (distance_US[startSens + SensorIdx[i]] > maxDist) {
         angle += Direction[i];
         //Reduce speed by 5% per sensor 
-        speed *= (1 - (abs(SensorIdx) * .05));
+        speed *= (1 - (abs(SensorIdx[i]) * .05));
         return;
       }
     }
