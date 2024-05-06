@@ -11,8 +11,8 @@
 ////////////////////////
 
 // ---------- Ultra-Sonic initial variable declarations ---------------
-const int frontMaxDist = 300; // cm
-const int sideMaxDist = 30; // cm
+const int USRange = 300; // cm
+const int maxDist = 200; // cm
 
 // define trigger pins (Color coated wires g = green etc.)
 const int trigPin_g = 23;
