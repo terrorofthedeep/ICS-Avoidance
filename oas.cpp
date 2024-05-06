@@ -1,5 +1,56 @@
 #include "oas.h"
 
+MPU6050 mpu;      // MPU 6050 object
+
+// MPU control/status vars
+bool dmpReady = false;  // set true if DMP init was successful
+uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
+uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
+uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
+uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint8_t fifoBuffer[64]; // FIFO storage buffer
+
+// other Variables
+float ax = 0;
+float ay = 0;
+float Vx, Vo_x = 0;
+float Vy, Vo_y = 0;
+float Px, Po_x = 0;
+float Py, Po_y = 0;
+float currBC[2] = {0};
+
+// orientation/motion vars
+Quaternion q;           // [w, x, y, z]         quaternion container
+VectorInt16 aa;         // [x, y, z]            accel sensor measurements
+VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
+VectorFloat gravity;    // [x, y, z]            gravity vector
+float euler[3];         // [psi, theta, phi]    Euler angle container
+float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+// --------------------------------------------------------------------
+
+int distances[6] = {0};
+int breadcrumb[2] = {0};
+
+// Create sonar class attributed to each indivdual sensor
+// Most left is sonar_1 and Most Right is sonar_6
+NewPing sonar_1(trigPin_g, echoPin_1, sideMaxDist);
+NewPing sonar_2(trigPin_w, echoPin_2, frontMaxDist);
+NewPing sonar_3(trigPin_y, echoPin_3, frontMaxDist);
+NewPing sonar_4(trigPin_o, echoPin_4, frontMaxDist);
+NewPing sonar_5(trigPin_b, echoPin_5, frontMaxDist);
+NewPing sonar_6(trigPin_p, echoPin_6, sideMaxDist);
+
+// Array to store US data
+int distance_US[6] = {0};
+
+// ---------- Infra-Red initial variable declarations -----------------
+char buff[4] = {0x80, 0x06, 0x03, 0x77};
+unsigned char data_laser_1[11] = {0}; // Holds sensor data
+unsigned char data_laser_2[11] = {0};
+int distance_IR_1 = 0;
+int distance_IR_2 = 0;
+// --------------------------------------------------------------------
+
 // ================================================================
 // ===               POSITION MODULE FUNCTIONS                  ===
 // ================================================================
@@ -66,7 +117,7 @@ float getVelocity(float Acc, float Vo){
 // ===                  STAY ON PATH FUNCTIONS                  ===
 // ================================================================
 
-void trackMovement() {
+void trackMovement(int &angle, int &speed) {
   // angle : Max Left (60) - Max Right (120)
   // speed : 0 - 255 (Max Speed is 70 MPH
   static float angleHistory[ARRAY_SIZE];
@@ -106,8 +157,8 @@ void trackMovement() {
   currBC[0] = speedHistory[index]; // Maintain the same speed for now
 
   // Change the global angle and speed
-  angle = & currBC[1] * 180.0 / M_PI; // convert to degrees
-  speed = & currBC[0];
+  angle = currBC[1] * 180.0 / M_PI; // convert to degrees
+  speed = currBC[0];
 
   // Print the updated values for verification
   Serial.print("Angle (deg): ");
@@ -146,7 +197,7 @@ void check_US(){
   distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
 }
 
-void detectAboveObstacles() {
+void detectAboveObstacles(int &angle, int &speed) {
   //If path is valid, do nothing
   //Else If sensors 1-3 are clear, slightly left
   //Else If sensors 1-2 are clear, significantly left
@@ -161,44 +212,44 @@ void detectAboveObstacles() {
   else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist && distances[2] > frontMaxDist) {
     //The left side is all clear
     breadcrumb[1] = 80;
-    angle = & 80;
-    speed *= & 0.9;
+    angle = 80;
+    speed *= 0.9;
   }
   else if(distances[0] > sideMaxDist && distances[1] > sideMaxDist) {
     //The leftmost two are clear
     breadcrumb[1] = 70;
-    angle = & 70;
-    speed *= & 0.70;
+    angle = 70;
+    speed *= 0.70;
   }
   else if(distances[0] > sideMaxDist) {
     //Only the leftmost sensor is clear
     breadcrumb[1] = 60;
-    angle = & 60;
-    speed *= & 0.40;
+    angle = 60;
+    speed *= 0.40;
   }
 
   else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist && distances[3] > frontMaxDist) {
     //The right side is all clear
     breadcrumb[1] = 100;
-    angle = & 100;
-    speed *= & 0.90;
+    angle = 100;
+    speed *= 0.90;
   }
   else if(distances[5] > sideMaxDist && distances[4] > sideMaxDist) {
     //The rightmost two are clear
     breadcrumb[1] = 110;
-    angle = & 110;
-    speed *= & 0.70;
+    angle = 110;
+    speed *= 0.70;
   }
   else if(distances[5] > sideMaxDist) {
     //Only the rightmost sensor is clear
     breadcrumb[1] = 120;
-    angle = & 120;
-    speed *= & 0.40;
+    angle = 120;
+    speed *= 0.40;
   }
   else {
     //If there is no alternate path, stop
     breadcrumb[0] = 0;
-    speed = & 0;
+    speed = 0;
   }
 
 }
@@ -206,7 +257,7 @@ void detectAboveObstacles() {
 // ================================================================
 // ===                      Infrared Reroute                    ===
 // ================================================================
-int check_IR(HardwareSerial& mySerial) {
+int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
   delay(10);
   mySerial.write(buff, 4); // Send data to sensor 1
   //Serial2.write(buff, 4); // Send data to sensor 2
@@ -231,12 +282,14 @@ int check_IR(HardwareSerial& mySerial) {
       if (laserData[3] == 'E' && laserData[4] == 'R' && laserData[5] == 'R')
       {
         //Serial.println(laserSide + "Sensor Out of range");
-        distance_IR = -1; // Not valid
+        // distance_IR = -1; // Not valid
+        return -1;
       }
       else
       {
         //float distance = 0;
-        distance_IR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
+        // distance_IR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
+        return (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
         //Serial.print(laserSide + "Sensor - Distance = ");
         //Serial.print(distance, 3);
         //Serial.println(" M");
@@ -244,14 +297,14 @@ int check_IR(HardwareSerial& mySerial) {
     }
     else
     {
-      Serial.println(laserSide + " Sensor - Invalid Data!");
+      // Serial.println(laserSide + " Sensor - Invalid Data!");
     }
   }
 
   delay(20);
 }
 
-void detectIngroundObstacles() {
+void detectIngroundObstacles(int &angle, int &speed) {
   //1 = left 2 = right
   // Check if left and right are both valid
   // 
@@ -261,17 +314,17 @@ void detectIngroundObstacles() {
   }
   else if(distance_IR_1 > maxLaserDistance && distance_IR_2 <= maxLaserDistance){
     // Turn left
-    angle = & 75;
-    speed *= & 0.75;
+    angle = 75;
+    speed *= 0.75;
   }
-  else if(distance_IR_1 <= maxLaserDistance && distance_IR_2 > maxLaserDistance){
+  else if(distance_IR_1 <= maxLaserDistance && distance_IR_2 > maxLaserDistance) {
     // Turn right
-    angle = & 105;
-    speed *= & 0.75;
+    angle = 105;
+    speed = 0.75;
 
-  }else (distance_IR_1 <= maxLaserDistance && distance_IR_2 <= maxLaserDistance){
+  } else {
     // stop
-    speed = & 0;
+    speed = 0;
   }
 
 }
@@ -279,16 +332,16 @@ void detectIngroundObstacles() {
 // ===                         Avoid                            ===
 // ================================================================
 
-void avoid() {
+void avoid(int &angle, int &speed) {
   check_gyro();
-  trackMovement();
+  trackMovement(angle, speed);
 
-  distance_IR_1 = check_IR(Serial1);
-  distance_IR_2 = check_IR(Serial2);
-  detectIngroundobstacles();
+  distance_IR_1 = check_IR(Serial1, data_laser_1);
+  distance_IR_2 = check_IR(Serial2, data_laser_2);
+  detectIngroundObstacles(angle, speed);
 
   check_US();
-  detectAboveObstacles();
+  detectAboveObstacles(angle, speed);
   
   
 }
@@ -297,7 +350,7 @@ void avoid() {
 // ===                         Set up                           ===
 // ================================================================
 
-void setup() {
+void avoid_setup() {
   // join I2C bus (I2Cdev library doesn't do this automatically)
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
         Wire.begin();
