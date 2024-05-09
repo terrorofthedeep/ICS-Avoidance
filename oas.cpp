@@ -197,6 +197,44 @@ void check_US(){
   distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
 }
 
+void detectAboveObstacles(int *angle, int *speed) {
+  int flag = 0;
+    // Filter out trash data
+    for (int i = 0; i < 6; i++) {
+        if (distances[i] == 0) {
+            distances[i] = 400; // Assuming 400 cm is out of range
+            flag += 1;
+            if(flag == 6){
+              return;
+            }
+        }
+    }
+
+    // Find the closest obstacle
+    int minDistance = distances[0];
+    int closestSensor = 0;
+    for (int i = 1; i < 6; i++) {
+        if (distances[i] < minDistance) {
+            minDistance = distances[i];
+            closestSensor = i;
+        }
+    }
+
+    // Calculate turn angle based on closestSensor
+    if (minDistance < 75) {
+        float factor = 0.25 + 0.05 * closestSensor; // Adjust factor based on sensor position
+        int targetAngle = 90 + (closestSensor < 3 ? 1 : -1) * factor * (closestSensor < 3 ? 90 : 60);
+        
+        *angle = max(60, min(120, targetAngle));
+
+        // Adjust speed
+        *speed = *speed * (1 - factor);
+    } else {
+        // Keep going straight
+        *angle = 90;
+    }
+}
+/*
 void detectAboveObstacles(int &angle, int &speed) {
   // Determine which angle for the breadcrumb
   int Direction[] = {0, -5, 5, -10, 10, -15, 15, -20, 20, -30, 30};
@@ -227,6 +265,7 @@ void detectAboveObstacles(int &angle, int &speed) {
   speed = 0;
 
 }
+*/
 
 // ================================================================
 // ===                      Infrared Reroute                    ===
@@ -263,10 +302,7 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
       {
         //float distance = 0;
         // distance_IR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
-        return (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
-        //Serial.print(laserSide + "Sensor - Distance = ");
-        //Serial.print(distance, 3);
-        //Serial.println(" M");
+        return 100 * ((laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001);
       }
     }
     else
@@ -278,7 +314,7 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
   delay(20);
 }
 
-void detectIngroundObstacles(int &angle, int &speed) {
+void detectIngroundObstacles(int *angle, int *speed) {
   //1 = left 2 = right
   // Check if left and right are both valid
   // 
@@ -288,17 +324,17 @@ void detectIngroundObstacles(int &angle, int &speed) {
   }
   else if(distance_IR_1 > maxLaserDistance && distance_IR_2 <= maxLaserDistance){
     // Turn left
-    angle = 75;
-    speed *= 0.75;
+    *angle = 75;
+    *speed *= 0.75;
   }
   else if(distance_IR_1 <= maxLaserDistance && distance_IR_2 > maxLaserDistance) {
     // Turn right
-    angle = 105;
-    speed = 0.75;
+    *angle = 105;
+    *speed = 0.75;
 
   } else {
     // stop
-    speed = 0;
+    *speed = 0;
   }
 
 }
@@ -306,7 +342,7 @@ void detectIngroundObstacles(int &angle, int &speed) {
 // ===                         Avoid                            ===
 // ================================================================
 
-void avoid(int &angle, int &speed) {
+void avoid(int *angle, int *speed) {
   check_gyro();
   trackMovement(angle, speed);
 
