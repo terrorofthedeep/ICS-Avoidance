@@ -196,7 +196,64 @@ void check_US(){
   distances[4] = sonar_5.ping_cm(); // Store distance from sonar 5
   distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
 }
+void detectAboveObstacles(int *angle, int *speed) {
+  int flag = 0;
+    // Filter out trash data
+    for (int i = 0; i < 6; i++) {
+        if (distances[i] == 0) {
+            distances[i] = 400; // Assuming 400 cm is out of range
+            flag += 1;
+            if(flag == 6){
+              return;
+            }
+        }
+    }
 
+    // Find the closest obstacle
+    int minDistance = distances[0];
+    int closestSensor = 0;
+    for (int i = 1; i < 6; i++) {
+        if (distances[i] < minDistance) {
+            minDistance = distances[i];
+            closestSensor = i;
+        }
+    }
+
+    // Calculate turn angle based on closestSensor
+    if (minDistance < 75) {
+
+      //Sensor right in front is blocked
+      if (closestSensor == 2 || closestSensor == 3) {
+        if ((distances[1]+distances[0])/2 > (distances[4]+distances[5])/2){
+          *angle = 60;
+          *speed *= 0.5;
+          return;
+        }else{
+          *angle = 120;
+          *speed *= 0.5;
+          return;
+        }
+      }
+
+      float factor = 0.25 + 0.05 * closestSensor; // Adjust factor based on sensor position
+      
+      if (closestSensor == 0 || closestSensor == 5) {
+        factor *= 0.5; // Reduce factor for sensors 1 and 6
+      }
+
+      
+      int targetAngle = 90 + (closestSensor < 3 ? 1 : -1) * factor * (closestSensor < 3 ? 90 : 60);
+      
+      *angle = max(60, min(120, targetAngle));
+
+      // Adjust speed
+      *speed = *speed * (1 - factor);
+    } else {
+      // Keep original angle
+      return;
+    }
+}
+/*
 void detectAboveObstacles(int *angle, int *speed) {
   int flag = 0;
     // Filter out trash data
@@ -234,6 +291,7 @@ void detectAboveObstacles(int *angle, int *speed) {
         *angle = 90;
     }
 }
+*/
 /*
 void detectAboveObstacles(int &angle, int &speed) {
   // Determine which angle for the breadcrumb
