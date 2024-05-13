@@ -42,6 +42,8 @@ NewPing sonar_6(trigPin_p, echoPin_6, USRange);
 
 // Array to store US data
 int distance_US[6] = {0};
+// store pairs
+std::pair<int, int> savedPairs[5];
 
 // ---------- Infra-Red initial variable declarations -----------------
 char buff[4] = {0x80, 0x06, 0x03, 0x77};
@@ -117,7 +119,7 @@ float getVelocity(float Acc, float Vo){
 // ===                  STAY ON PATH FUNCTIONS                  ===
 // ================================================================
 
-void trackMovement(int &angle, int &speed) {
+void trackMovement(int *angle, int *speed) {
   // angle : Max Left (60) - Max Right (120)
   // speed : 0 - 255 (Max Speed is 70 MPH
   static float angleHistory[ARRAY_SIZE];
@@ -157,14 +159,14 @@ void trackMovement(int &angle, int &speed) {
   currBC[0] = speedHistory[index]; // Maintain the same speed for now
 
   // Change the global angle and speed
-  angle = currBC[1] * 180.0 / M_PI; // convert to degrees
-  speed = currBC[0];
+  *angle = (int) (currBC[1] * 180.0 / M_PI); // convert to degrees
+  *speed = (int) currBC[0];
 
   // Print the updated values for verification
-  Serial.print("Angle (deg): ");
-  Serial.print(currBC[1] * 180.0 / M_PI);
-  Serial.print(" Speed: ");
-  Serial.println(currBC[0]);
+  //Serial.print("Angle (deg): ");
+  //Serial.print(currBC[1] * 180.0 / M_PI);
+  //Serial.print(" Speed: ");
+  //Serial.println(currBC[0]);
 }
 
 void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll) {
@@ -189,13 +191,117 @@ void updateVelocity(float deltaVx, float deltaVy) {
 // ===                     Ultra Sonic Reroute                  ===
 // ================================================================
 void check_US(){
+  Serial.print("Check_US ");
   distances[0] = sonar_1.ping_cm(); // Store distance from sonar 1
   distances[1] = sonar_2.ping_cm(); // Store distance from sonar 2
   distances[2] = sonar_3.ping_cm(); // Store distance from sonar 3
   distances[3] = sonar_4.ping_cm(); // Store distance from sonar 4
   distances[4] = sonar_5.ping_cm(); // Store distance from sonar 5
   distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
+  Serial.print("Sensor 1: ");
+  Serial.print(distances[0]);
+  Serial.print(" Sensor 2: ");
+  Serial.print(distances[1]);
+  Serial.print(" Sensor 3: ");
+  Serial.print(distances[2]);
+  Serial.print(" Sensor 4: ");
+  Serial.print(distances[3]);
+  Serial.print(" Sensor 5: ");
+  Serial.print(distances[4]);
+  Serial.print(" Sensor 6: ");
+  Serial.println(distances[5]);
 }
+
+/*
+void detectAboveObstacles(int *angle, int *speed) {
+
+  int sensorAngles[6] = {10, 40, 70, 110, 140, 170}; // Angles of the sensors
+  int maxLeftAngle = 60; // Maximum left turn angle
+  int maxRightAngle = 120; // Maximum right turn angle
+  int pairCount = 0;
+
+  for (int i = 0; i < 5; ++i) {
+    if(distances[i] > MIN_OBSTACLE_DISTANCE && distances[i+1] > MIN_OBSTACLE_DISTANCE){
+      savedPairs[pairCount++] = std::make_pair(distances[i], distances[i + 1]);
+
+    }
+  }
+
+
+ for (int i = 0; i < pairCount; ++i) {
+        Serial.print("(");
+        Serial.print(savedPairs[i].first);
+        Serial.print(", ");
+        Serial.print(savedPairs[i].second);
+        Serial.println(")");
+    }
+
+
+  //*angle = newAngle;
+  //*speed = newSpeed;
+}
+*/
+/*
+void detectAboveObstacles(int *angle, int *speed) {
+    int sensorAngles[6] = {10, 40, 70, 110, 140, 170}; // Angles of the sensors
+    int maxLeftAngle = 60; // Maximum left turn angle
+    int maxRightAngle = 120; // Maximum right turn angle
+
+    int scores[3] = {0}; // Scores for left, straight, and right angles
+
+    // Calculate scores for each angle
+    for (int i = 0; i < 6; ++i) {
+        if (distances[i] > 0) {
+            int sensorAngle = sensorAngles[i];
+            int diff = 90 - sensorAngle; // Difference from straight
+            if (diff < 0) diff += 360; // Adjust for negative values
+            int turnLeft = diff > 180 ? diff - 360 : diff; // Calculate left turn
+            int turnRight = diff < -180 ? diff + 360 : diff; // Calculate right turn
+
+            if (turnLeft >= -maxLeftAngle && turnLeft <= maxLeftAngle) {
+                scores[0]++; // Increment left score
+            }
+            if (turnLeft >= -maxRightAngle && turnLeft <= maxRightAngle) {
+                scores[2]++; // Increment right score
+            }
+            if (turnRight >= -maxLeftAngle && turnRight <= maxLeftAngle) {
+                scores[0]++; // Increment left score
+            }
+            if (turnRight >= -maxRightAngle && turnRight <= maxRightAngle) {
+                scores[2]++; // Increment right score
+            }
+            if (abs(turnLeft) <= 30 || abs(turnRight) <= 30) {
+                scores[1]++; // Increment straight score
+            }
+        }
+    }
+
+    // Find the maximum score
+    int maxScore = 0;
+    int bestAngle = 90; // Default to straight
+    for (int i = 0; i < 3; ++i) {
+        if (scores[i] > maxScore) {
+            maxScore = scores[i];
+            if (i == 0) {
+                bestAngle = 60; // Left
+            } else if (i == 2) {
+                bestAngle = 120; // Right
+            } else {
+                bestAngle = 90; // Straight
+            }
+        }
+    }
+
+    // Calculate speed based on angle deviation from 90 degrees
+    int speedReduction = abs(bestAngle - 90) / 10 * 15; // Calculate speed reduction percentage
+    int finalSpeed = *speed - speedReduction; // Calculate final speed
+
+    // Set the output values
+    *angle = bestAngle;
+    *speed = finalSpeed; // Set speed based on angle deviation
+}
+*/
+/*
 void detectAboveObstacles(int *angle, int *speed) {
   int flag = 0;
     // Filter out trash data
@@ -253,83 +359,58 @@ void detectAboveObstacles(int *angle, int *speed) {
       return;
     }
 }
-/*
-void detectAboveObstacles(int *angle, int *speed) {
-  int flag = 0;
-    // Filter out trash data
-    for (int i = 0; i < 6; i++) {
-        if (distances[i] == 0) {
-            distances[i] = 400; // Assuming 400 cm is out of range
-            flag += 1;
-            if(flag == 6){
-              return;
-            }
-        }
-    }
-
-    // Find the closest obstacle
-    int minDistance = distances[0];
-    int closestSensor = 0;
-    for (int i = 1; i < 6; i++) {
-        if (distances[i] < minDistance) {
-            minDistance = distances[i];
-            closestSensor = i;
-        }
-    }
-
-    // Calculate turn angle based on closestSensor
-    if (minDistance < 75) {
-        float factor = 0.25 + 0.05 * closestSensor; // Adjust factor based on sensor position
-        int targetAngle = 90 + (closestSensor < 3 ? 1 : -1) * factor * (closestSensor < 3 ? 90 : 60);
-        
-        *angle = max(60, min(120, targetAngle));
-
-        // Adjust speed
-        *speed = *speed * (1 - factor);
-    } else {
-        // Keep going straight
-        *angle = 90;
-    }
-}
 */
-/*
-void detectAboveObstacles(int &angle, int &speed) {
+void detectAboveObstacles(int *angle, int *speed) {
   // Determine which angle for the breadcrumb
   int Direction[] = {0, -5, 5, -10, 10, -15, 15, -20, 20, -30, 30};
   int SensorIdx[] = {0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5};
-
+  //Filters our bad data
+  for (int i = 0; i < 6; i++) {
+        if (distances[i] == 0) {
+            distances[i] = 400; // Assuming 400 cm is out of range
+      }
+  }
+  
+  
   // Determine which sensor we need to start with
-  int startSens = (angle) / 30;
+  int startSens = (*angle) / 30;
   //Serial.print("StartSens");
   //Serial.println(startSens + 1);
   for (int i = 0; i < 11; i++) {
-    if (angle % 30 == 0 && i == 0 && angle < 150 && angle > -150) {
-      //If the angle is in between 2 sensors, check both
+    //If the angle is in between 2 sensors, check both
+    if (*angle % 30 == 0 && i == 0 && *angle < 120 && *angle > 60) {
+      //If path is valid
       if (distance_US[startSens] > maxDist && distance_US[startSens - 1] > maxDist) {
-        //result[0] = angle;
-        //result[2] = speed;
+        *angle = *angle + Direction[i];
+        *speed = *speed * (1 - .01 * abs(i));
+        Serial.println("Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
         return;
       }
     }
     else if ((startSens + SensorIdx[i] >= 0) && (startSens + SensorIdx[i] < 5)) {
       if (distance_US[startSens + SensorIdx[i]] > maxDist) {
-        angle += Direction[i];
-        //Reduce speed by 5% per sensor 
-        speed *= (1 - (abs(SensorIdx[i]) * .05));
+        *angle = *angle + Direction[i];
+        *speed = *speed * (1 - .01 * abs(i));
+        Serial.println("Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
         return;
       }
     }
   }
-  speed = 0;
+  Serial.println("No valid avoid found");
+  *speed = 0;
 
 }
-*/
-
 // ================================================================
 // ===                      Infrared Reroute                    ===
 // ================================================================
 int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
+  // Clear the receive buffer
+  while (mySerial.available() > 0) {
+    mySerial.read();
+  }
+  
   delay(10);
+  
   mySerial.write(buff, 4); // Send data to sensor 1
   //Serial2.write(buff, 4); // Send data to sensor 2
 
@@ -358,21 +439,29 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
       }
       else
       {
-        //float distance = 0;
-        // distance_IR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
-        return 100 * ((laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001);
+        int distance_IR = 0;
+        distance_IR = 100 * ((laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001);
+        //distanceIR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
+        //Serial.print("laser :" );
+        //Serial.println(String(distanceIR));
+        //return distanceIR;
+        //Serial.print(laserSide + "Sensor - Distance = ");
+        //Serial.print(distance, 3);
+        //Serial.println(" M");
+        return distance_IR;
+
       }
     }
     else
     {
-      // Serial.println(laserSide + " Sensor - Invalid Data!");
+      Serial.println(" Sensor - Invalid Data!");
     }
   }
 
   delay(20);
 }
 
-void detectIngroundObstacles(int *angle, int *speed) {
+void detectIngroundObstacles(int* angle, int* speed) {
   //1 = left 2 = right
   // Check if left and right are both valid
   // 
@@ -382,36 +471,41 @@ void detectIngroundObstacles(int *angle, int *speed) {
   }
   else if(distance_IR_1 > maxLaserDistance && distance_IR_2 <= maxLaserDistance){
     // Turn left
-    *angle = 75;
+    *angle = 70;
     *speed *= 0.75;
   }
   else if(distance_IR_1 <= maxLaserDistance && distance_IR_2 > maxLaserDistance) {
     // Turn right
-    *angle = 105;
-    *speed = 0.75;
+    *angle = 110;
+    *speed *= 0.75;
 
   } else {
     // stop
     *speed = 0;
+
   }
 
 }
+
 // ================================================================
 // ===                         Avoid                            ===
 // ================================================================
 
 void avoid(int *angle, int *speed) {
-  check_gyro();
-  trackMovement(angle, speed);
-
-  distance_IR_1 = check_IR(Serial1, data_laser_1);
+  /*distance_IR_1 = check_IR(Serial1, data_laser_1);
+  Serial.println("Left IR: "+ String(distance_IR_1));
   distance_IR_2 = check_IR(Serial2, data_laser_2);
+  Serial.println("Right IR: "+ String(distance_IR_2));
   detectIngroundObstacles(angle, speed);
-
+  Serial.println("IR angle: "+ String(*angle));
+*/
   check_US();
   detectAboveObstacles(angle, speed);
-  
-  
+  Serial.println("US angle: "+ String(*angle));
+  delay(10);
+
+  //check_gyro();
+  //trackMovement(angle, speed);
 }
 
 // ================================================================
