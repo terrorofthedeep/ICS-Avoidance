@@ -11,10 +11,13 @@
 ////////////////////////
 
 // ---------- Ultra-Sonic initial variable declarations ---------------
+const int NUM_SENSORS = 6; 
+const int SENSOR_ANGLE_STEP = 30;
+const int MIN_OBSTACLE_DISTANCE = 75;
 const int USRange = 300; // cm
-const int maxDist = 200; // cm
+const int maxDist = 85; // cm
 
-// define trigger pins (Color coated wires g = green etc.)
+// define trigger pins (Color coded wires g = green etc.)
 const int trigPin_g = 23;
 const int trigPin_w = 25;
 const int trigPin_y = 27;
@@ -45,9 +48,9 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]);
 
 void check_US();
 
-void detectAboveObstacles(int &angle, int &speed);
+void detectAboveObstacles(int *angle, int *speed);
 
-void detectIngroundObstacles(int &angle, int &speed);
+void detectIngroundObstacles(int *angle, int *speed);
 
 void check_gyro();
 
@@ -55,10 +58,10 @@ float getPosition(float Po, float  Vel, float Acc);
 
 float getVelocity(float Acc, float Vo);
 
-void trackMovement(int &angle, int &speed);
+void trackMovement(int *angle, int *speed);
 
 void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll);
 
 void updateVelocity(float deltaVx, float deltaVy);
 
-void avoid(int &angle, int &speed);
+void avoid(int *angle, int *speed);
