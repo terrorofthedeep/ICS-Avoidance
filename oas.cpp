@@ -29,6 +29,7 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // --------------------------------------------------------------------
 
 int distances[6] = {0};
+int prev_distance[6] = {-1,-1,-1,-1,-1,-1};
 int breadcrumb[2] = {0};
 
 // Create sonar class attributed to each indivdual sensor
@@ -39,11 +40,6 @@ NewPing sonar_3(trigPin_y, echoPin_3, USRange);
 NewPing sonar_4(trigPin_o, echoPin_4, USRange);
 NewPing sonar_5(trigPin_b, echoPin_5, USRange);
 NewPing sonar_6(trigPin_p, echoPin_6, USRange);
-
-// Array to store US data
-int distance_US[6] = {0};
-// store pairs
-std::pair<int, int> savedPairs[5];
 
 // ---------- Infra-Red initial variable declarations -----------------
 char buff[4] = {0x80, 0x06, 0x03, 0x77};
@@ -66,11 +62,11 @@ void check_gyro(){
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
     // YAW
-    //Serial.print(ypr[0] * 180/M_PI);
+    ////Serial.print(ypr[0] * 180/M_PI);
     // pTICh       
-    //Serial.print(ypr[1] * 180/M_PI);
+    ////Serial.print(ypr[1] * 180/M_PI);
     // ROLL        
-    //Serial.println(ypr[2] * 180/M_PI);
+    ////Serial.println(ypr[2] * 180/M_PI);
 
 
     // display real acceleration, adjusted to remove gravity
@@ -79,11 +75,11 @@ void check_gyro(){
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
     // X
-    //Serial.print(aaReal.x/ 16384.0);
+    ////Serial.print(aaReal.x/ 16384.0);
     // Y
-    //Serial.print(aaReal.y/ 16384.0);
+    ////Serial.print(aaReal.y/ 16384.0);
     // Z
-    //Serial.println(aaReal.z/ 16384.0);
+    ////Serial.println(aaReal.z/ 16384.0);
 
     ax = (aaReal.x/ 16384.0) * 9.8;
     ay = (aaReal.y/ 16384.0) * 9.8;
@@ -163,10 +159,10 @@ void trackMovement(int *angle, int *speed) {
   *speed = (int) currBC[0];
 
   // Print the updated values for verification
-  //Serial.print("Angle (deg): ");
-  //Serial.print(currBC[1] * 180.0 / M_PI);
-  //Serial.print(" Speed: ");
-  //Serial.println(currBC[0]);
+  ////Serial.print("Angle (deg): ");
+  ////Serial.print(currBC[1] * 180.0 / M_PI);
+  ////Serial.print(" Speed: ");
+  ////Serial.println(currBC[0]);
 }
 
 void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll) {
@@ -191,116 +187,33 @@ void updateVelocity(float deltaVx, float deltaVy) {
 // ===                     Ultra Sonic Reroute                  ===
 // ================================================================
 void check_US(){
-  Serial.print("Check_US ");
+  //Serial.print("Check_US ");
   distances[0] = sonar_1.ping_cm(); // Store distance from sonar 1
   distances[1] = sonar_2.ping_cm(); // Store distance from sonar 2
   distances[2] = sonar_3.ping_cm(); // Store distance from sonar 3
   distances[3] = sonar_4.ping_cm(); // Store distance from sonar 4
   distances[4] = sonar_5.ping_cm(); // Store distance from sonar 5
   distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
-  Serial.print("Sensor 1: ");
-  Serial.print(distances[0]);
-  Serial.print(" Sensor 2: ");
-  Serial.print(distances[1]);
-  Serial.print(" Sensor 3: ");
-  Serial.print(distances[2]);
-  Serial.print(" Sensor 4: ");
-  Serial.print(distances[3]);
-  Serial.print(" Sensor 5: ");
-  Serial.print(distances[4]);
-  Serial.print(" Sensor 6: ");
-  Serial.println(distances[5]);
-}
-
-/*
-void detectAboveObstacles(int *angle, int *speed) {
-
-  int sensorAngles[6] = {10, 40, 70, 110, 140, 170}; // Angles of the sensors
-  int maxLeftAngle = 60; // Maximum left turn angle
-  int maxRightAngle = 120; // Maximum right turn angle
-  int pairCount = 0;
-
-  for (int i = 0; i < 5; ++i) {
-    if(distances[i] > MIN_OBSTACLE_DISTANCE && distances[i+1] > MIN_OBSTACLE_DISTANCE){
-      savedPairs[pairCount++] = std::make_pair(distances[i], distances[i + 1]);
-
+  if(prev_distance[0] == -1){
+    for (int i  = 0 ; i < 6; i ++){
+      prev_distance[i] = distances[i];
     }
   }
-
-
- for (int i = 0; i < pairCount; ++i) {
-        Serial.print("(");
-        Serial.print(savedPairs[i].first);
-        Serial.print(", ");
-        Serial.print(savedPairs[i].second);
-        Serial.println(")");
+  for (int i  = 0 ; i < 6; i ++){
+    //If our data is bad, we just get old data
+    if (distances[i] == 0){
+      distances[i] = 400;
+    
+    }else{
+      //If our data is good, we just save the new distance to our old one
+      prev_distance[i] = distances[i];
     }
-
-
-  //*angle = newAngle;
-  //*speed = newSpeed;
+    //Serial.print("Sensor "+ String(i + 1) + ": ");
+    //Serial.print(String(distances[i]) + " ");
+  }
+  //Serial.println("");
 }
-*/
-/*
-void detectAboveObstacles(int *angle, int *speed) {
-    int sensorAngles[6] = {10, 40, 70, 110, 140, 170}; // Angles of the sensors
-    int maxLeftAngle = 60; // Maximum left turn angle
-    int maxRightAngle = 120; // Maximum right turn angle
 
-    int scores[3] = {0}; // Scores for left, straight, and right angles
-
-    // Calculate scores for each angle
-    for (int i = 0; i < 6; ++i) {
-        if (distances[i] > 0) {
-            int sensorAngle = sensorAngles[i];
-            int diff = 90 - sensorAngle; // Difference from straight
-            if (diff < 0) diff += 360; // Adjust for negative values
-            int turnLeft = diff > 180 ? diff - 360 : diff; // Calculate left turn
-            int turnRight = diff < -180 ? diff + 360 : diff; // Calculate right turn
-
-            if (turnLeft >= -maxLeftAngle && turnLeft <= maxLeftAngle) {
-                scores[0]++; // Increment left score
-            }
-            if (turnLeft >= -maxRightAngle && turnLeft <= maxRightAngle) {
-                scores[2]++; // Increment right score
-            }
-            if (turnRight >= -maxLeftAngle && turnRight <= maxLeftAngle) {
-                scores[0]++; // Increment left score
-            }
-            if (turnRight >= -maxRightAngle && turnRight <= maxRightAngle) {
-                scores[2]++; // Increment right score
-            }
-            if (abs(turnLeft) <= 30 || abs(turnRight) <= 30) {
-                scores[1]++; // Increment straight score
-            }
-        }
-    }
-
-    // Find the maximum score
-    int maxScore = 0;
-    int bestAngle = 90; // Default to straight
-    for (int i = 0; i < 3; ++i) {
-        if (scores[i] > maxScore) {
-            maxScore = scores[i];
-            if (i == 0) {
-                bestAngle = 60; // Left
-            } else if (i == 2) {
-                bestAngle = 120; // Right
-            } else {
-                bestAngle = 90; // Straight
-            }
-        }
-    }
-
-    // Calculate speed based on angle deviation from 90 degrees
-    int speedReduction = abs(bestAngle - 90) / 10 * 15; // Calculate speed reduction percentage
-    int finalSpeed = *speed - speedReduction; // Calculate final speed
-
-    // Set the output values
-    *angle = bestAngle;
-    *speed = finalSpeed; // Set speed based on angle deviation
-}
-*/
 /*
 void detectAboveObstacles(int *angle, int *speed) {
   int flag = 0;
@@ -361,43 +274,57 @@ void detectAboveObstacles(int *angle, int *speed) {
 }
 */
 void detectAboveObstacles(int *angle, int *speed) {
-  // Determine which angle for the breadcrumb
-  int Direction[] = {0, -5, 5, -10, 10, -15, 15, -20, 20, -30, 30};
-  int SensorIdx[] = {0, -1, 1, -2, 2, -3, 3, -4, 4, -5, 5};
-  //Filters our bad data
-  for (int i = 0; i < 6; i++) {
-        if (distances[i] == 0) {
-            distances[i] = 400; // Assuming 400 cm is out of range
-      }
-  }
   
+  // Determine which angle for the breadcrumb
+  int SensorIdx[] = {0, -1, 1, -2, 2,-3, 3, -4, 4, -5, 5};
+  
+
   
   // Determine which sensor we need to start with
   int startSens = (*angle) / 30;
-  //Serial.print("StartSens");
-  //Serial.println(startSens + 1);
-  for (int i = 0; i < 11; i++) {
-    //If the angle is in between 2 sensors, check both
-    if (*angle % 30 == 0 && i == 0 && *angle < 120 && *angle > 60) {
-      //If path is valid
-      if (distance_US[startSens] > maxDist && distance_US[startSens - 1] > maxDist) {
-        *angle = *angle + Direction[i];
-        *speed = *speed * (1 - .01 * abs(i));
-        Serial.println("Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
-        return;
-      }
-    }
-    else if ((startSens + SensorIdx[i] >= 0) && (startSens + SensorIdx[i] < 5)) {
-      if (distance_US[startSens + SensorIdx[i]] > maxDist) {
-        *angle = *angle + Direction[i];
-        *speed = *speed * (1 - .01 * abs(i));
-        Serial.println("Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
-        return;
+  int dist = (*speed) * 2.5;
+  ////Serial.print("StartSens");
+  ////Serial.println(startSens + 1);
+
+  //Serial.println("Initial Course: ");
+  //Serial.println("Angle: " + String(*angle) + " " + "Distance: " + String(dist));
+  // If the starting angle is between two sensors
+  if (*angle % 30 == 0){
+    //Serial.print("StartSens " + String(startSens + 1) + String(startSens + 2));
+    for(int i = 0; i < 11; i++){
+      int sensor1 = startSens + SensorIdx[i];
+      int sensor2 = startSens + SensorIdx[i] - 1;
+      //Serial.println(String(sensor1) + String(sensor2));
+      if (sensor1 >= 0 && sensor1 <= 5 && sensor2 >= 0 && sensor2 <= 5 ) {
+        if (distances[sensor1] > dist && distances[sensor2] > dist) {
+          *angle = max(min(*angle + (SensorIdx[i]) * 30, 120), 60);
+          *speed = min(20,*speed * (1 - .05 * abs(i)));
+          //Serial.println("Found New Course: ");
+          //Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + "Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
+          return;
+        }
       }
     }
   }
-  Serial.println("No valid avoid found");
+  //If the starting angle is not
+  else{
+    //Serial.print("StartSens" + String(startSens + 1) );
+    for(int i = 0; i < 11; i++){
+      if ((startSens + SensorIdx[i] >= 0) && (startSens + SensorIdx[i] <= 5)) {
+        //Serial.println(distances[startSens + SensorIdx[i]]);
+        if (distances[startSens + SensorIdx[i]] > dist) {
+          *angle = max(min(*angle + (SensorIdx[i]) * 30, 120), 60);
+          *speed = min(20, *speed * (1 - .05 * abs(i)));
+          //Serial.println("Found New Course: ");
+          //Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + " Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
+          return;
+        }
+      }
+    }
+  }
+  //Serial.println("No valid avoid found");
   *speed = 0;
+  return;
 
 }
 // ================================================================
@@ -433,7 +360,7 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
     {
       if (laserData[3] == 'E' && laserData[4] == 'R' && laserData[5] == 'R')
       {
-        //Serial.println(laserSide + "Sensor Out of range");
+        ////Serial.println(laserSide + "Sensor Out of range");
         // distance_IR = -1; // Not valid
         return -1;
       }
@@ -442,19 +369,19 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
         int distance_IR = 0;
         distance_IR = 100 * ((laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001);
         //distanceIR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
-        //Serial.print("laser :" );
-        //Serial.println(String(distanceIR));
+        ////Serial.print("laser :" );
+        ////Serial.println(String(distanceIR));
         //return distanceIR;
-        //Serial.print(laserSide + "Sensor - Distance = ");
-        //Serial.print(distance, 3);
-        //Serial.println(" M");
+        ////Serial.print(laserSide + "Sensor - Distance = ");
+        ////Serial.print(distance, 3);
+        ////Serial.println(" M");
         return distance_IR;
 
       }
     }
     else
     {
-      Serial.println(" Sensor - Invalid Data!");
+      //Serial.println(" Sensor - Invalid Data!");
     }
   }
 
@@ -493,15 +420,15 @@ void detectIngroundObstacles(int* angle, int* speed) {
 
 void avoid(int *angle, int *speed) {
   /*distance_IR_1 = check_IR(Serial1, data_laser_1);
-  Serial.println("Left IR: "+ String(distance_IR_1));
+  //Serial.println("Left IR: "+ String(distance_IR_1));
   distance_IR_2 = check_IR(Serial2, data_laser_2);
-  Serial.println("Right IR: "+ String(distance_IR_2));
+  //Serial.println("Right IR: "+ String(distance_IR_2));
   detectIngroundObstacles(angle, speed);
-  Serial.println("IR angle: "+ String(*angle));
+  //Serial.println("IR angle: "+ String(*angle));
 */
   check_US();
   detectAboveObstacles(angle, speed);
-  Serial.println("US angle: "+ String(*angle));
+  //Serial.println("US angle: "+ String(*angle));
   delay(10);
 
   //check_gyro();
@@ -529,7 +456,7 @@ void avoid_setup() {
     mpu.initialize();
     
     // verify connection
-    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+    //Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
     // load and configure the DMP
     devStatus = mpu.dmpInitialize();
@@ -560,9 +487,9 @@ void avoid_setup() {
         // 1 = initial memory load failed
         // 2 = DMP configuration updates failed
         // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
+        //Serial.print(F("DMP Initialization failed (code "));
+        //Serial.print(devStatus);
+        //Serial.println(F(")"));
     }
 
   //Serial.begin(9600); // Starts the serial communication
