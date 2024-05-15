@@ -47,6 +47,7 @@ unsigned char data_laser_1[11] = {0}; // Holds sensor data
 unsigned char data_laser_2[11] = {0};
 int distance_IR_1 = 0;
 int distance_IR_2 = 0;
+unsigned long lastIRCheckTime = 0;
 // --------------------------------------------------------------------
 
 // ================================================================
@@ -348,12 +349,16 @@ void detectIngroundObstacles(int* angle, int* speed) {
 // ================================================================
 
 void avoid(int *angle, int *speed) {
-  /*distance_IR_1 = check_IR(Serial1, data_laser_1);
-  //Serial.println("Left IR: "+ String(distance_IR_1));
-  distance_IR_2 = check_IR(Serial2, data_laser_2);
-  //Serial.println("Right IR: "+ String(distance_IR_2));
-  detectIngroundObstacles(angle, speed);
-  //Serial.println("IR angle: "+ String(*angle));
+  /*
+  if((millis() - lastIRCheckTime) > IRInterval) {
+    distance_IR_1 = check_IR(Serial1, data_laser_1);
+    //Serial.println("Left IR: "+ String(distance_IR_1));
+    distance_IR_2 = check_IR(Serial2, data_laser_2);
+    //Serial.println("Right IR: "+ String(distance_IR_2));
+    detectIngroundObstacles(angle, speed);
+    //Serial.println("IR angle: "+ String(*angle));
+    lastIRCheckTime = millis();
+  }
 */
   check_US();
   detectAboveObstacles(angle, speed);

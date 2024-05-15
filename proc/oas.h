@@ -36,6 +36,7 @@ const int echoPin_6 = 32;
 const int ARRAY_SIZE = 100;
 const int MAX_SPEED = 255;
 const float maxLaserDistance = 1.11;
+const int IRInterval = 500; //How often to check IR and potentially avoid obstacles
 
 // --------------------------------------------------------------------
 
