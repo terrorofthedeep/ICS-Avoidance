@@ -56,17 +56,11 @@ int distance_IR_2 = 0;
 void check_gyro(){
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
 
-    // OUtput Yaw Pitch Roll    
-    // display Euler angles in degrees
+    // Output Yaw Pitch Roll    
+    // Display Euler angles in degrees
     mpu.dmpGetQuaternion(&q, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-    // YAW
-    ////Serial.print(ypr[0] * 180/M_PI);
-    // pTICh       
-    ////Serial.print(ypr[1] * 180/M_PI);
-    // ROLL        
-    ////Serial.println(ypr[2] * 180/M_PI);
 
 
     // display real acceleration, adjusted to remove gravity
@@ -74,12 +68,6 @@ void check_gyro(){
     mpu.dmpGetAccel(&aa, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    // X
-    ////Serial.print(aaReal.x/ 16384.0);
-    // Y
-    ////Serial.print(aaReal.y/ 16384.0);
-    // Z
-    ////Serial.println(aaReal.z/ 16384.0);
 
     ax = (aaReal.x/ 16384.0) * 9.8;
     ay = (aaReal.y/ 16384.0) * 9.8;
@@ -95,7 +83,7 @@ void check_gyro(){
     Po_x = Px;
     Po_y = Py;
 
-    //Pack C and send 
+    //Update Breadcrumb and send 
     currBC[0] = sqrt(sq(Vx)+ sq(Vy));
     currBC[1] = ypr[0];
         
@@ -117,7 +105,7 @@ float getVelocity(float Acc, float Vo){
 
 void trackMovement(int *angle, int *speed) {
   // angle : Max Left (60) - Max Right (120)
-  // speed : 0 - 255 (Max Speed is 70 MPH
+  // speed : 0 - 255 (Max Speed is 70 MPH)
   static float angleHistory[ARRAY_SIZE];
   static float speedHistory[ARRAY_SIZE];
   static int index = 0;
@@ -133,11 +121,10 @@ void trackMovement(int *angle, int *speed) {
   //float expectedDistance = speedHistory[index] * 1.0; // Assuming a time interval of 1 second
   //float actualDistance = sqrt(sq(Vx) + sq(Vy));
   float expectedDistance = speedHistory[index] * T_INT;
-  float actualDistance = currBC[0] * T_INT; // Use the current speed (currBC[0]) as the actual distance traveled
+  float actualDistance = currBC[0] * T_INT; // Use the current speed (currBC[0]) to get actual distance traveled
   float distanceError = actualDistance - expectedDistance;
 
   float expectedAngle = angleHistory[index];
-  //float actualAngle = ypr[0];
   float actualAngle = ypr[0] * 180.0 / M_PI; // Convert ypr[0] from radians to degrees
   float angleError = actualAngle - expectedAngle;
 
@@ -159,10 +146,10 @@ void trackMovement(int *angle, int *speed) {
   *speed = (int) currBC[0];
 
   // Print the updated values for verification
-  ////Serial.print("Angle (deg): ");
-  ////Serial.print(currBC[1] * 180.0 / M_PI);
-  ////Serial.print(" Speed: ");
-  ////Serial.println(currBC[0]);
+  //Serial.print("Angle (deg): ");
+  //Serial.print(currBC[1] * 180.0 / M_PI);
+  //Serial.print(" Speed: ");
+  //Serial.println(currBC[0]);
 }
 
 void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll) {
@@ -214,65 +201,7 @@ void check_US(){
   //Serial.println("");
 }
 
-/*
-void detectAboveObstacles(int *angle, int *speed) {
-  int flag = 0;
-    // Filter out trash data
-    for (int i = 0; i < 6; i++) {
-        if (distances[i] == 0) {
-            distances[i] = 400; // Assuming 400 cm is out of range
-            flag += 1;
-            if(flag == 6){
-              return;
-            }
-        }
-    }
 
-    // Find the closest obstacle
-    int minDistance = distances[0];
-    int closestSensor = 0;
-    for (int i = 1; i < 6; i++) {
-        if (distances[i] < minDistance) {
-            minDistance = distances[i];
-            closestSensor = i;
-        }
-    }
-
-    // Calculate turn angle based on closestSensor
-    if (minDistance < 75) {
-
-      //Sensor right in front is blocked
-      if (closestSensor == 2 || closestSensor == 3) {
-        if ((distances[1]+distances[0])/2 > (distances[4]+distances[5])/2){
-          *angle = 60;
-          *speed *= 0.5;
-          return;
-        }else{
-          *angle = 120;
-          *speed *= 0.5;
-          return;
-        }
-      }
-
-      float factor = 0.25 + 0.05 * closestSensor; // Adjust factor based on sensor position
-      
-      if (closestSensor == 0 || closestSensor == 5) {
-        factor *= 0.5; // Reduce factor for sensors 1 and 6
-      }
-
-      
-      int targetAngle = 90 + (closestSensor < 3 ? 1 : -1) * factor * (closestSensor < 3 ? 90 : 60);
-      
-      *angle = max(60, min(120, targetAngle));
-
-      // Adjust speed
-      *speed = *speed * (1 - factor);
-    } else {
-      // Keep original angle
-      return;
-    }
-}
-*/
 void detectAboveObstacles(int *angle, int *speed) {
   
   // Determine which angle for the breadcrumb
@@ -283,11 +212,12 @@ void detectAboveObstacles(int *angle, int *speed) {
   // Determine which sensor we need to start with
   int startSens = (*angle) / 30;
   int dist = (*speed) * 2.5;
-  ////Serial.print("StartSens");
-  ////Serial.println(startSens + 1);
+  //Serial.print("StartSens");
+  //Serial.println(startSens + 1);
 
   //Serial.println("Initial Course: ");
   //Serial.println("Angle: " + String(*angle) + " " + "Distance: " + String(dist));
+
   // If the starting angle is between two sensors
   if (*angle % 30 == 0){
     //Serial.print("StartSens " + String(startSens + 1) + String(startSens + 2));
@@ -330,6 +260,7 @@ void detectAboveObstacles(int *angle, int *speed) {
 // ================================================================
 // ===                      Infrared Reroute                    ===
 // ================================================================
+//Gets the sensor distance from mySerial if possible, otherwise returns -1
 int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
   // Clear the receive buffer
   while (mySerial.available() > 0) {
@@ -339,7 +270,6 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
   delay(10);
   
   mySerial.write(buff, 4); // Send data to sensor 1
-  //Serial2.write(buff, 4); // Send data to sensor 2
 
   
   if (mySerial.available() > 0) // Determine whether there is data to read on serial 1
@@ -360,32 +290,31 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
     {
       if (laserData[3] == 'E' && laserData[4] == 'R' && laserData[5] == 'R')
       {
-        ////Serial.println(laserSide + "Sensor Out of range");
-        // distance_IR = -1; // Not valid
+        //Serial.println(laserSide + "Sensor Out of range");
         return -1;
       }
       else
       {
         int distance_IR = 0;
-        distance_IR = 100 * ((laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001);
-        //distanceIR = (laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001;
-        ////Serial.print("laser :" );
-        ////Serial.println(String(distanceIR));
-        //return distanceIR;
-        ////Serial.print(laserSide + "Sensor - Distance = ");
-        ////Serial.print(distance, 3);
-        ////Serial.println(" M");
+        distance_IR = ((laserData[3] - 0x30) * 100 + (laserData[4] - 0x30) * 10 + (laserData[5] - 0x30) * 1 + (laserData[7] - 0x30) * 0.1 + (laserData[8] - 0x30) * 0.01 + (laserData[9] - 0x30) * 0.001);
+
+        //Serial.print("Sensor - Distance = ");
+        //Serial.print(distance, 3);
+        //Serial.println(" M");
         return distance_IR;
 
       }
     }
     else
     {
-      //Serial.println(" Sensor - Invalid Data!");
+      //Serial.println("Sensor - Invalid Data!");
+      return -1;
     }
   }
-
-  delay(20);
+  else {
+    //Serial.println("Sensor unavailable!");
+    return -1;
+  }
 }
 
 void detectIngroundObstacles(int* angle, int* speed) {
