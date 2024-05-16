@@ -370,16 +370,16 @@ void detectIngroundObstacles(int* angle, int* speed) {
   //1 = left 2 = right
   // Check if left and right are both valid
   // 
-  if(distance_IR_1 > maxLaserDistance && distance_IR_2 > maxLaserDistance) {
+  if(distance_IR_1 < maxLaserDistance && distance_IR_2 < maxLaserDistance) {
     // Valid path
-    return; 
+    return;
   }
-  else if(distance_IR_1 > maxLaserDistance && distance_IR_2 <= maxLaserDistance){
+  else if(distance_IR_1 < maxLaserDistance && distance_IR_2 >= maxLaserDistance){
     // Turn left
     *angle = 70;
     *speed *= 0.75;
   }
-  else if(distance_IR_1 <= maxLaserDistance && distance_IR_2 > maxLaserDistance) {
+  else if(distance_IR_1 >= maxLaserDistance && distance_IR_2 < maxLaserDistance) {
     // Turn right
     *angle = 110;
     *speed *= 0.75;
@@ -397,17 +397,18 @@ void detectIngroundObstacles(int* angle, int* speed) {
 // ================================================================
 
 void avoid(int *angle, int *speed) {
-  /*
-  if((millis() - lastIRCheckTime) > IRInterval) {
-    distance_IR_1 = check_IR(Serial1, data_laser_1);
+  if(distance_IR_1 < 5000 && distance_IR_2 < 5000 && ((millis() - lastIRCheckTime) > IRInterval)) {
+    distance_IR_1 = check_IR(Serial3, data_laser_1);
     //Serial.println("Left IR: "+ String(distance_IR_1));
     distance_IR_2 = check_IR(Serial2, data_laser_2);
     //Serial.println("Right IR: "+ String(distance_IR_2));
-    detectIngroundObstacles(angle, speed);
+    if(distance_IR_1 < 5000 && distance_IR_2 < 5000) {
+      detectIngroundObstacles(angle, speed);
+    }
     //Serial.println("IR angle: "+ String(*angle));
     lastIRCheckTime = millis();
   }
-*/
+
   check_US();
   detectAboveObstacles(angle, speed);
   //Serial.println("US angle: "+ String(*angle));
@@ -475,7 +476,7 @@ void avoid_setup() {
     }
 
   //Serial.begin(9600); // Starts the serial communication
-  Serial1.begin(9600);   // Initialize hardware serial port 1 (IR)
+  Serial3.begin(9600);   // Initialize hardware serial port 1 (IR)
   Serial2.begin(9600);   // Initialize hardware serial port 2 (IR)
 
 }
