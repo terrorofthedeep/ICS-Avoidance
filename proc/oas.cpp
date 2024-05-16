@@ -19,6 +19,8 @@ float Px, Po_x = 0;
 float Py, Po_y = 0;
 float currBC[2] = {0};
 
+int curr_0 = 0;
+
 // orientation/motion vars
 Quaternion q;           // [w, x, y, z]         quaternion container
 VectorInt16 aa;         // [x, y, z]            accel sensor measurements
@@ -53,6 +55,52 @@ unsigned long lastIRCheckTime = 0;
 // ================================================================
 // ===               POSITION MODULE FUNCTIONS                  ===
 // ================================================================
+
+// ================================================================
+// ===                  STAY ON PATH FUNCTIONS                  ===
+// ================================================================
+void keepOnPath(int *desiredAngle, int *desiredSpeed) {
+
+  // Check the gyroscope and accelerometer
+  check_gyro();
+
+  // Read current angle and speed
+  int currentAngle = currBC[1]; // Assuming currBC[1] stores the current angle
+  int currentSpeed = currBC[0]; // Assuming currBC[0] stores the current speed
+
+  // Update current heading
+  int newHeading = curr_0 - 90 + *desiredAngle;
+  //Serial.println("New Heading : " + String(newHeading));
+
+  if(newHeading <= 180 && newHeading >= -180){
+    curr_0 = curr_0 - 90 + *desiredAngle;
+    
+  }else {
+    curr_0 = abs(newHeading) - 360;
+  }
+
+  Serial.println("Adjusted curr_0 : " + String(curr_0));
+  Serial.println("Current Angle we are going: " + String(currentAngle));
+  if(currentAngle != curr_0){
+
+    Serial.println("Current Angle we are going: " + String(currentAngle));
+
+    // Calculate error between desired and current values
+    int angleError = curr_0 - currentAngle;
+    Serial.println("Angle Error: " + String(angleError));
+
+    // Adjust the angle to turn to
+    *desiredAngle = max(50, min(115, *desiredAngle + angleError));
+
+    Serial.println("NEW/ Adjusted angle to turn to: " + String(*desiredAngle));
+    Serial.println("-----------------------------");
+    
+  } else{
+    return;
+  }
+
+}
+
 
 void check_gyro(){
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
