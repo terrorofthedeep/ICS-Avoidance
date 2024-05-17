@@ -21,6 +21,7 @@ float currBC[2] = {0};
 
 int curr_0 = 0;
 
+
 // orientation/motion vars
 Quaternion q;           // [w, x, y, z]         quaternion container
 VectorInt16 aa;         // [x, y, z]            accel sensor measurements
@@ -32,7 +33,7 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 
 int distances[6] = {0};
 int prev_distance[6] = {-1,-1,-1,-1,-1,-1};
-int breadcrumb[2] = {0};
+int storedRoute[2] = {0, 0};
 
 // Create sonar class attributed to each indivdual sensor
 // Most left is sonar_1 and Most Right is sonar_6
@@ -59,49 +60,6 @@ unsigned long lastIRCheckTime = 0;
 // ================================================================
 // ===                  STAY ON PATH FUNCTIONS                  ===
 // ================================================================
-void keepOnPath(int *desiredAngle, int *desiredSpeed) {
-
-  // Check the gyroscope and accelerometer
-  check_gyro();
-
-  // Read current angle and speed
-  int currentAngle = currBC[1]; // Assuming currBC[1] stores the current angle
-  int currentSpeed = currBC[0]; // Assuming currBC[0] stores the current speed
-
-  // Update current heading
-  int newHeading = curr_0 - 90 + *desiredAngle;
-  //Serial.println("New Heading : " + String(newHeading));
-
-  if(newHeading <= 180 && newHeading >= -180){
-    curr_0 = curr_0 - 90 + *desiredAngle;
-    
-  }else {
-    curr_0 = abs(newHeading) - 360;
-  }
-
-  Serial.println("Adjusted curr_0 : " + String(curr_0));
-  Serial.println("Current Angle we are going: " + String(currentAngle));
-  if(currentAngle != curr_0){
-
-    Serial.println("Current Angle we are going: " + String(currentAngle));
-
-    // Calculate error between desired and current values
-    int angleError = curr_0 - currentAngle;
-    Serial.println("Angle Error: " + String(angleError));
-
-    // Adjust the angle to turn to
-    *desiredAngle = max(50, min(115, *desiredAngle + angleError));
-
-    Serial.println("NEW/ Adjusted angle to turn to: " + String(*desiredAngle));
-    Serial.println("-----------------------------");
-    
-  } else{
-    return;
-  }
-
-}
-
-
 void check_gyro(){
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
 
@@ -134,8 +92,8 @@ void check_gyro(){
 
     //Update Breadcrumb and send 
     currBC[0] = sqrt(sq(Vx)+ sq(Vy));
-    currBC[1] = ypr[0];
-        
+    currBC[1] = ypr[0] * 180;
+    //Serial.println("YPR: " + String(ypr[0]));
     delay(10);
   }
 }
@@ -152,53 +110,50 @@ float getVelocity(float Acc, float Vo){
 // ===                  STAY ON PATH FUNCTIONS                  ===
 // ================================================================
 
-void trackMovement(int *angle, int *speed) {
-  // angle : Max Left (60) - Max Right (120)
-  // speed : 0 - 255 (Max Speed is 70 MPH)
-  static float angleHistory[ARRAY_SIZE];
-  static float speedHistory[ARRAY_SIZE];
-  static int index = 0;
+void keepOnPath(int *desiredAngle, int *desiredSpeed) {
 
+  // Check the gyroscope and accelerometer
   check_gyro();
 
-  // Store the current angle and speed in the local arrays
-  angleHistory[index] = ypr[0];
-  speedHistory[index] = currBC[0];
-  index = (index + 1) % ARRAY_SIZE; // Wrap around the array
+  // Read current angle and speed
+  int currentAngle = currBC[1]; // Assuming currBC[1] stores the current angle
+  int currentSpeed = currBC[0]; // Assuming currBC[0] stores the current speed
 
-  // Compare the actual movement (from simulated values) with the expected movement (from angle and speed)
-  //float expectedDistance = speedHistory[index] * 1.0; // Assuming a time interval of 1 second
-  //float actualDistance = sqrt(sq(Vx) + sq(Vy));
-  float expectedDistance = speedHistory[index] * T_INT;
-  float actualDistance = currBC[0] * T_INT; // Use the current speed (currBC[0]) to get actual distance traveled
-  float distanceError = actualDistance - expectedDistance;
+  // Update current heading
+  int newHeading = curr_0 - 90 + *desiredAngle;
+  ////Serial.println("New Heading : " + String(newHeading));
 
-  float expectedAngle = angleHistory[index];
-  float actualAngle = ypr[0] * 180.0 / M_PI; // Convert ypr[0] from radians to degrees
-  float angleError = actualAngle - expectedAngle;
-
-  // Course correction using vector addition of angle error and new desired angle
-  float newDesiredAngle = expectedAngle + angleError;
-
-  // Normalize the new desired angle to the range [60, 120] degrees
-  newDesiredAngle = fmod(newDesiredAngle, M_PI); // Wrap to [0, PI]
-  if (newDesiredAngle < M_PI / 3.0) {
-    newDesiredAngle += 2.0 * M_PI / 3.0; // Shift to [60, 120] range
+  if(newHeading <= 180 && newHeading >= -180){
+    curr_0 = curr_0 - 90 + *desiredAngle;
+    
+  }else {
+    curr_0 = abs(newHeading) - 360;
   }
 
-  // Set the new desired angle and speed
-  currBC[1] = newDesiredAngle;
-  currBC[0] = speedHistory[index]; // Maintain the same speed for now
+  //Serial.println("Adjusted curr_0 : " + String(curr_0));
+  //Serial.println("Current Angle we are going: " + String(currentAngle));
+  if(currentAngle != curr_0){
 
-  // Change the global angle and speed
-  *angle = (int) (currBC[1] * 180.0 / M_PI); // convert to degrees
-  *speed = (int) currBC[0];
+    //Serial.println("Current Angle we are going: " + String(currentAngle));
 
-  // Print the updated values for verification
-  //Serial.print("Angle (deg): ");
-  //Serial.print(currBC[1] * 180.0 / M_PI);
-  //Serial.print(" Speed: ");
-  //Serial.println(currBC[0]);
+    // Calculate error between desired and current values
+    int angleError = curr_0 - currentAngle;
+    //Serial.println("Angle Error: " + String(angleError));
+
+    if (angleError > 20){
+      angleError = 20;
+
+    }
+    // Adjust the angle to turn to
+    *desiredAngle = max(65, min(115, *desiredAngle + angleError));
+
+    //Serial.println("NEW/ Adjusted angle to turn to: " + String(*desiredAngle));
+    //Serial.println("-----------------------------");
+    
+  } else{
+    return;
+  }
+
 }
 
 void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll) {
@@ -217,7 +172,48 @@ void updateVelocity(float deltaVx, float deltaVy) {
         Vx = (Vx / speed) * MAX_SPEED;
         Vy = (Vy / speed) * MAX_SPEED;
     }
+}// ================================================================
+// ===                  GET BACK ON PATH FUNCTIONS                  ===
+// ================================================================
+void getNewVector(int *angle, int *speed) {
+    // Get the old x and y vectors
+    int storedAngle = storedRoute[0];
+    int storedSpeed = storedRoute[1];
+    
+    //If we don't have a storedRoute {0,0}, just return
+    if (storedSpeed == 0) {
+      return;
+    }
+
+    // Convert stored vector to Cartesian coordinates
+    double xCoord = cos(storedAngle * M_PI / 180.0) * storedSpeed;
+    double yCoord = sin(storedAngle * M_PI / 180.0) * storedSpeed;
+    
+    
+    // Get the new x and y vectors
+    double xNewCoord = cos(*angle * M_PI / 180.0) * *speed;
+    double yNewCoord = sin(*angle * M_PI / 180.0) * *speed;
+    
+    
+    // Combine the vectors
+    xCoord += xNewCoord;
+    yCoord += yNewCoord;
+    
+    
+    // Calculate the new angle and speed
+    int newSpeed = *speed;
+    double newAngle = atan2(yCoord, xCoord) * 180.0 / M_PI;
+    
+    // Make sure the angle is positive
+    if (newAngle < 0) {
+        newAngle += 360;
+    }
+    
+    // Update the angle and speed pointers
+    *angle = (int)newAngle;
+    *speed = (int)newSpeed;
 }
+
 
 // ================================================================
 // ===                     Ultra Sonic Reroute                  ===
@@ -244,10 +240,10 @@ void check_US(){
       //If our data is good, we just save the new distance to our old one
       prev_distance[i] = distances[i];
     }
-    //Serial.print("Sensor "+ String(i + 1) + ": ");
-    //Serial.print(String(distances[i]) + " ");
+    Serial.print("Sensor "+ String(i + 1) + ": ");
+    Serial.print(String(distances[i]) + " ");
   }
-  //Serial.println("");
+  Serial.println("");
 }
 
 
@@ -262,10 +258,10 @@ void detectAboveObstacles(int *angle, int *speed) {
   int startSens = (*angle) / 30;
   int dist = (*speed) * 2.5;
   //Serial.print("StartSens");
-  //Serial.println(startSens + 1);
+  ////Serial.println(startSens + 1);
 
-  //Serial.println("Initial Course: ");
-  //Serial.println("Angle: " + String(*angle) + " " + "Distance: " + String(dist));
+  ////Serial.println("Initial Course: ");
+  ////Serial.println("Angle: " + String(*angle) + " " + "Distance: " + String(dist));
 
   // If the starting angle is between two sensors
   if (*angle % 30 == 0){
@@ -273,13 +269,13 @@ void detectAboveObstacles(int *angle, int *speed) {
     for(int i = 0; i < 11; i++){
       int sensor1 = startSens + SensorIdx[i];
       int sensor2 = startSens + SensorIdx[i] - 1;
-      //Serial.println(String(sensor1) + String(sensor2));
+      ////Serial.println(String(sensor1) + String(sensor2));
       if (sensor1 >= 0 && sensor1 <= 5 && sensor2 >= 0 && sensor2 <= 5 ) {
         if (distances[sensor1] > dist && distances[sensor2] > dist) {
           *angle = max(min(*angle + (SensorIdx[i]) * 30, 120), 60);
-          *speed = min(20,*speed * (1 - .05 * abs(i)));
-          //Serial.println("Found New Course: ");
-          //Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + "Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
+          *speed = max(20,*speed * (1 - .05 * abs(i)));
+          ////Serial.println("Found New Course: ");
+          ////Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + "Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
           return;
         }
       }
@@ -290,18 +286,18 @@ void detectAboveObstacles(int *angle, int *speed) {
     //Serial.print("StartSens" + String(startSens + 1) );
     for(int i = 0; i < 11; i++){
       if ((startSens + SensorIdx[i] >= 0) && (startSens + SensorIdx[i] <= 5)) {
-        //Serial.println(distances[startSens + SensorIdx[i]]);
+        ////Serial.println(distances[startSens + SensorIdx[i]]);
         if (distances[startSens + SensorIdx[i]] > dist) {
           *angle = max(min(*angle + (SensorIdx[i]) * 30, 120), 60);
           *speed = min(20, *speed * (1 - .05 * abs(i)));
-          //Serial.println("Found New Course: ");
-          //Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + " Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
+          ////Serial.println("Found New Course: ");
+          ////Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + " Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
           return;
         }
       }
     }
   }
-  //Serial.println("No valid avoid found");
+  ////Serial.println("No valid avoid found");
   *speed = 0;
   return;
 
@@ -339,7 +335,7 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
     {
       if (laserData[3] == 'E' && laserData[4] == 'R' && laserData[5] == 'R')
       {
-        //Serial.println(laserSide + "Sensor Out of range");
+        ////Serial.println(laserSide + "Sensor Out of range");
         return -1;
       }
       else
@@ -349,19 +345,19 @@ int check_IR(HardwareSerial& mySerial, unsigned char laserData[]) {
 
         //Serial.print("Sensor - Distance = ");
         //Serial.print(distance, 3);
-        //Serial.println(" M");
+        ////Serial.println(" M");
         return distance_IR;
 
       }
     }
     else
     {
-      //Serial.println("Sensor - Invalid Data!");
+      ////Serial.println("Sensor - Invalid Data!");
       return -1;
     }
   }
   else {
-    //Serial.println("Sensor unavailable!");
+    ////Serial.println("Sensor unavailable!");
     return -1;
   }
 }
@@ -370,16 +366,16 @@ void detectIngroundObstacles(int* angle, int* speed) {
   //1 = left 2 = right
   // Check if left and right are both valid
   // 
-  if(distance_IR_1 < maxLaserDistance && distance_IR_2 < maxLaserDistance) {
+  if(distance_IR_1 > maxLaserDistance && distance_IR_2 > maxLaserDistance) {
     // Valid path
-    return;
+    return; 
   }
-  else if(distance_IR_1 < maxLaserDistance && distance_IR_2 >= maxLaserDistance){
+  else if(distance_IR_1 > maxLaserDistance && distance_IR_2 <= maxLaserDistance){
     // Turn left
     *angle = 70;
     *speed *= 0.75;
   }
-  else if(distance_IR_1 >= maxLaserDistance && distance_IR_2 < maxLaserDistance) {
+  else if(distance_IR_1 <= maxLaserDistance && distance_IR_2 > maxLaserDistance) {
     // Turn right
     *angle = 110;
     *speed *= 0.75;
@@ -397,25 +393,48 @@ void detectIngroundObstacles(int* angle, int* speed) {
 // ================================================================
 
 void avoid(int *angle, int *speed) {
-  if(distance_IR_1 < 5000 && distance_IR_2 < 5000 && ((millis() - lastIRCheckTime) > IRInterval)) {
-    distance_IR_1 = check_IR(Serial3, data_laser_1);
-    //Serial.println("Left IR: "+ String(distance_IR_1));
-    distance_IR_2 = check_IR(Serial2, data_laser_2);
-    //Serial.println("Right IR: "+ String(distance_IR_2));
-    if(distance_IR_1 < 5000 && distance_IR_2 < 5000) {
-      detectIngroundObstacles(angle, speed);
-    }
-    //Serial.println("IR angle: "+ String(*angle));
-    lastIRCheckTime = millis();
-  }
 
+  //Serial.println("Entering avoid");
+
+  
+  //Checks the sensors
   check_US();
-  detectAboveObstacles(angle, speed);
-  //Serial.println("US angle: "+ String(*angle));
-  delay(10);
+  //distance_IR_1 = check_IR(Serial1, data_laser_1);
+  //distance_IR_2 = check_IR(Serial2, data_laser_2);
 
-  //check_gyro();
-  //trackMovement(angle, speed);
+  //Makes sure our angle is accurate compared to what our gyro angle says
+  //Serial.println("StoredRoute:" + String(storedRoute[0]) + " " + String(storedRoute[1]));
+  //Combine our givenRoute with our storedRoute into newRoute
+  getNewVector(angle, speed);
+  //Serial.println("CombinedRoute:" + String(*angle) + " " + String(*speed));
+
+  //Store the angle given by 
+  int originalAngle = *angle;
+  int originalSpeed = *speed;
+
+  //Check to see if newRoute is a valid route
+  detectAboveObstacles(angle, speed);
+  //detectIngroundObstacles(angle, speed);
+  //Serial.println("USRoute:" + String(*angle) + " " + String(*speed));
+  
+  
+
+  //If it is not, then storedRoute = newRoute + storedRoute, give alternatePath
+  //If it is, then storedRoute = {0,0}, give storedRoute
+  if (*angle != originalAngle){
+    //generates the 
+    //Serial.println("Storing old speed and distance data");
+    storedRoute[0] = 90 - (*angle - 90);
+    storedRoute[1] = originalSpeed;
+    //Serial.println("StoredRoute: " + String(storedRoute[0]) + " " + String(storedRoute[1]));
+  }else{
+    storedRoute[0] = 0;
+    storedRoute[1] = 0;
+  }
+  
+  //Uses the gyroscope to calculate any micro-adjustments we need
+  //keepOnPath(angle, speed);
+
 }
 
 // ================================================================
@@ -439,7 +458,7 @@ void avoid_setup() {
     mpu.initialize();
     
     // verify connection
-    //Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+    ////Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
     // load and configure the DMP
     devStatus = mpu.dmpInitialize();
@@ -472,11 +491,11 @@ void avoid_setup() {
         // (if it's going to break, usually the code will be 1)
         //Serial.print(F("DMP Initialization failed (code "));
         //Serial.print(devStatus);
-        //Serial.println(F(")"));
+        ////Serial.println(F(")"));
     }
 
   //Serial.begin(9600); // Starts the serial communication
-  Serial3.begin(9600);   // Initialize hardware serial port 1 (IR)
+  Serial1.begin(9600);   // Initialize hardware serial port 1 (IR)
   Serial2.begin(9600);   // Initialize hardware serial port 2 (IR)
 
 }
