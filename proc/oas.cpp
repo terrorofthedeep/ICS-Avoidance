@@ -1,6 +1,7 @@
 #include "oas.h"
 
 MPU6050 mpu;      // MPU 6050 object
+//SerialPort serialPort;
 
 // MPU control/status vars
 bool dmpReady = false;  // set true if DMP init was successful
@@ -451,8 +452,9 @@ void avoid_setup() {
     #endif
 
     // initialize serial communication
-    Serial.begin(115200);
-    while (!Serial); // wait for Leonardo enumeration, others continue immediately
+    //serialPort.begin(115200);
+    //delay(5000);
+    //while (!Serial); // wait for Leonardo enumeration, others continue immediately
 
     // initialize device
     mpu.initialize();
@@ -495,7 +497,7 @@ void avoid_setup() {
     }
 
   //Serial.begin(9600); // Starts the serial communication
-  Serial1.begin(9600);   // Initialize hardware serial port 1 (IR)
-  Serial2.begin(9600);   // Initialize hardware serial port 2 (IR)
+  //Serial1.begin(9600);   // Initialize hardware serial port 1 (IR)
+  //Serial2.begin(9600);   // Initialize hardware serial port 2 (IR)
 
 }

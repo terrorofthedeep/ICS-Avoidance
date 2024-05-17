@@ -10,7 +10,7 @@ void setup()
 }
 
 void loop(){
-  checkLaser(Serial1, data_laser_1, "Left");
+  checkLaser(Serial3, data_laser_1, "Left");
   checkLaser(Serial2, data_laser_2, "Right");
 }
 
@@ -56,6 +56,7 @@ void checkLaser(HardwareSerial& mySerial, unsigned char laserData[], String lase
       Serial.println(laserSide + " Sensor - Invalid Data!");
     }
   }
+  //Serial.println(laserSide + "Issue");
 
   delay(20);
 }
