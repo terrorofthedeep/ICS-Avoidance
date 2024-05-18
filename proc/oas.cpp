@@ -1,5 +1,8 @@
 #include "oas.h"
 
+#define WINDOW_SIZE 9
+#define NUM_SENSORS 6
+#define CRIT_DIST 90
 MPU6050 mpu;      // MPU 6050 object
 //SerialPort serialPort;
 
@@ -19,7 +22,6 @@ float Vy, Vo_y = 0;
 float Px, Po_x = 0;
 float Py, Po_y = 0;
 float currBC[2] = {0};
-
 int curr_0 = 0;
 
 
@@ -36,6 +38,12 @@ int distances[6] = {0};
 int prev_distance[6] = {-1,-1,-1,-1,-1,-1};
 int storedRoute[2] = {0, 0};
 
+int window[NUM_SENSORS][WINDOW_SIZE];
+int sortedWindow[NUM_SENSORS][WINDOW_SIZE];
+int indices[NUM_SENSORS] = {0}; // Current index in the circular buffer for each sensor
+bool filled[NUM_SENSORS] = {false}; // Flags to check if each sensor's window is filled
+
+int avoidstack[3] = {0};
 // Create sonar class attributed to each indivdual sensor
 // Most left is sonar_1 and Most Right is sonar_6
 NewPing sonar_1(trigPin_g, echoPin_1, USRange);
@@ -219,35 +227,134 @@ void getNewVector(int *angle, int *speed) {
 // ================================================================
 // ===                     Ultra Sonic Reroute                  ===
 // ================================================================
-void check_US(){
-  //Serial.print("Check_US ");
-  distances[0] = sonar_1.ping_cm(); // Store distance from sonar 1
-  distances[1] = sonar_2.ping_cm(); // Store distance from sonar 2
-  distances[2] = sonar_3.ping_cm(); // Store distance from sonar 3
-  distances[3] = sonar_4.ping_cm(); // Store distance from sonar 4
-  distances[4] = sonar_5.ping_cm(); // Store distance from sonar 5
-  distances[5] = sonar_6.ping_cm(); // Store distance from sonar 6
-  if(prev_distance[0] == -1){
-    for (int i  = 0 ; i < 6; i ++){
-      prev_distance[i] = distances[i];
+void addValue(int sensor, int value) {
+  if(value == 0) return;
+  window[sensor][indices[sensor]] = value; // Add the new value to the current index for the sensor
+  indices[sensor] = (indices[sensor] + 1) % WINDOW_SIZE; // Update index in a circular manner
+  if (indices[sensor] == 0) {
+    filled[sensor] = true; // Set the flag when the window is filled
+  }
+}
+int findMedian(int sensor) {
+  // Copy the sensor's window values to the sortedWindow array
+  for (int i = 0; i < WINDOW_SIZE; i++) {
+    sortedWindow[sensor][i] = window[sensor][i];
+  }
+  // Sort the sortedWindow array
+  for (int i = 0; i < WINDOW_SIZE - 1; i++) {
+    for (int j = i + 1; j < WINDOW_SIZE; j++) {
+      if (sortedWindow[sensor][i] > sortedWindow[sensor][j]) {
+        int temp = sortedWindow[sensor][i];
+        sortedWindow[sensor][i] = sortedWindow[sensor][j];
+        sortedWindow[sensor][j] = temp;
+      }
     }
   }
-  for (int i  = 0 ; i < 6; i ++){
-    //If our data is bad, we just get old data
-    if (distances[i] == 0){
-      distances[i] = 400;
-    
-    }else{
-      //If our data is good, we just save the new distance to our old one
-      prev_distance[i] = distances[i];
+  // Return the median value
+  return sortedWindow[sensor][4];
+}
+void check_US(int* angle, int* speed){
+  addValue(0, sonar_1.ping_cm());
+  addValue(1, sonar_2.ping_cm());
+  addValue(2, sonar_3.ping_cm());
+  addValue(3, sonar_4.ping_cm());
+  addValue(4, sonar_5.ping_cm());
+  addValue(5, sonar_6.ping_cm());
+  //Serial.print("Check_US ");
+  for (int i = 0; i < NUM_SENSORS; i++) {
+    if (filled[i]) {
+      int median = findMedian(i);
+
+      
+      distances[i] = median;
+      Serial.print(" Sensor ");
+      Serial.print(i+1);
+      Serial.print(": ");
+      Serial.print(median);
+      if(checkTurn(angle, speed, i, median)){
+        break;
+      }
     }
-    Serial.print("Sensor "+ String(i + 1) + ": ");
-    Serial.print(String(distances[i]) + " ");
   }
   Serial.println("");
 }
+bool checkTurn(int* angle, int* speed, int sensor, int distance){
+  if(distance < 30){ //Emergency Stop
+        *speed = 0;
+        Serial.println("[EMERGENCY STOP]: Sensor ");
+        Serial.print(sensor+1);
+        Serial.println(" detected late avoidance ");
+      }
+  if(*angle < 90){
+    if(sensor > 2) return false;
+    if(distance < CRIT_DIST){ //if obstacle detected on left
+      *speed = 0;
+      *angle = 120; //then turn right
+      return true;
+    }
+  }
+  else{
+    if(*angle > 90){
+      if(sensor < 2) return false;
+      if(distance < CRIT_DIST){ //if obstacle detected on right
+        *speed = 0;
+        *angle = 60; //then turn left
+        return true;
+      }
+    }if(sensor > 0 && sensor < 5){
+      if(distance < CRIT_DIST){
+        if(*speed > 50) *speed = *speed/2;
+        Serial.print("[OBSTACLE AT SENSOR");
+        Serial.print(sensor+1);
+        Serial.print(" ATTEMPTING TURN ] -->");
+        if(sensor <= 2){
+          *angle = 119;
+          Serial.print(*angle);
+        } 
+        else{
+          *angle = 60;
+          Serial.print("60");
+        }
+        Serial.println("");
+        return true;
+      }
+    }
+    /*
+    if(sensor > 0 && sensor < 5){ //check all sensors ahead
+      if(distance < CRIT_DIST){ //if obstacle detected ahead
+        Serial.print("[OBSTACLE AT SENSOR");
+        Serial.print(sensor+1);
+        Serial.print(" ATTEMPTING TURN ] -->");
+        
+        int open_sensor = 0;
+        int greatest = -1;
+        int new_angle = 0;
+        for(int i = 0; i < NUM_SENSORS; i++){ //find most open sensor
+          if(i+1 != sensor){
+            if(distances[i] > greatest) 
+              open_sensor = i;
+              greatest = distances[i];
+          }
+        }
+        //turn towards open sensor
+        if(open_sensor <= 2 ){
+          new_angle = 60;//90 - ((open_sensor+1)*15);
+        }
+        else{
+          new_angle = 120;//95 + 15*(open_sensor % 3);
+        }
+        Serial.print(new_angle);
+        Serial.println(""); 
+        *angle = new_angle;
+        *speed = *speed/2;
+        return true;
+        }*/
+    return false;
 
+  }
+}
 
+/*
 void detectAboveObstacles(int *angle, int *speed) {
   
   // Determine which angle for the breadcrumb
@@ -258,6 +365,7 @@ void detectAboveObstacles(int *angle, int *speed) {
   // Determine which sensor we need to start with
   int startSens = (*angle) / 30;
   int dist = (*speed) * 2.5;
+  int offset = -10;
   //Serial.print("StartSens");
   ////Serial.println(startSens + 1);
 
@@ -292,7 +400,7 @@ void detectAboveObstacles(int *angle, int *speed) {
           *angle = max(min(*angle + (SensorIdx[i]) * 30, 120), 60);
           *speed = min(20, *speed * (1 - .05 * abs(i)));
           ////Serial.println("Found New Course: ");
-          ////Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + " Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
+          Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + " Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
           return;
         }
       }
@@ -303,6 +411,7 @@ void detectAboveObstacles(int *angle, int *speed) {
   return;
 
 }
+*/
 // ================================================================
 // ===                      Infrared Reroute                    ===
 // ================================================================
@@ -399,14 +508,14 @@ void avoid(int *angle, int *speed) {
 
   
   //Checks the sensors
-  check_US();
+  check_US(angle, speed);
   //distance_IR_1 = check_IR(Serial1, data_laser_1);
   //distance_IR_2 = check_IR(Serial2, data_laser_2);
 
   //Makes sure our angle is accurate compared to what our gyro angle says
   //Serial.println("StoredRoute:" + String(storedRoute[0]) + " " + String(storedRoute[1]));
   //Combine our givenRoute with our storedRoute into newRoute
-  getNewVector(angle, speed);
+  //getNewVector(angle, speed);
   //Serial.println("CombinedRoute:" + String(*angle) + " " + String(*speed));
 
   //Store the angle given by 
@@ -414,24 +523,24 @@ void avoid(int *angle, int *speed) {
   int originalSpeed = *speed;
 
   //Check to see if newRoute is a valid route
-  detectAboveObstacles(angle, speed);
+  //detectAboveObstacles(angle, speed);
   //detectIngroundObstacles(angle, speed);
   //Serial.println("USRoute:" + String(*angle) + " " + String(*speed));
   
   
 
   //If it is not, then storedRoute = newRoute + storedRoute, give alternatePath
-  //If it is, then storedRoute = {0,0}, give storedRoute
-  if (*angle != originalAngle){
-    //generates the 
-    //Serial.println("Storing old speed and distance data");
-    storedRoute[0] = 90 - (*angle - 90);
-    storedRoute[1] = originalSpeed;
-    //Serial.println("StoredRoute: " + String(storedRoute[0]) + " " + String(storedRoute[1]));
-  }else{
-    storedRoute[0] = 0;
-    storedRoute[1] = 0;
-  }
+  // //If it is, then storedRoute = {0,0}, give storedRoute
+  // if (*angle != originalAngle){
+  //   //generates the 
+  //   //Serial.println("Storing old speed and distance data");
+  //   storedRoute[0] = 90 - (*angle - 90);
+  //   storedRoute[1] = originalSpeed;
+  //   //Serial.println("StoredRoute: " + String(storedRoute[0]) + " " + String(storedRoute[1]));
+  // }else{
+  //   storedRoute[0] = 0;
+  //   storedRoute[1] = 0;
+  // }
   
   //Uses the gyroscope to calculate any micro-adjustments we need
   //keepOnPath(angle, speed);
@@ -470,7 +579,11 @@ void avoid_setup() {
     mpu.setYGyroOffset(-9);
     mpu.setZGyroOffset(52);
     mpu.setZAccelOffset(1439); // 1688 factory default for my test chip
-    
+    for (int i = 0; i < 6; i++) {
+      for(int j = 0; j < WINDOW_SIZE; j++){
+        window[i][j] = 0;
+      }
+    }
     // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
         // Calibration Time: generate offsets and calibrate our MPU6050
