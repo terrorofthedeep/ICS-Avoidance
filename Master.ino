@@ -1,3 +1,7 @@
+////////////////////////
+///       OAS        ///
+////////////////////////
+
 // ----- Libraries -----
 #include <Arduino.h>
 #include "RPC.h"
@@ -7,6 +11,21 @@
 #include "math.h"
 #include <Servo.h>
 #include "mbed.h"
+
+// ----------------------------------------------------------------
+int angles[20] = {45, 45, 45, 45, 65, 65, 45, 0, 20, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45};
+
+//---------------- variables for PID control -----------------
+float kp_angle = 1.0, ki_angle = 0.05, kd_angle = 0.01;
+float kp_speed = 1.0, ki_speed = 0.05, kd_speed = 0.01;
+float integral_angle = 0, previous_error_angle = 0;
+float integral_speed = 0, previous_error_speed = 0;
+
+// Constants for integral windup protection
+const float MAX_INTEGRAL_ANGLE = 1000.0;
+const float MIN_INTEGRAL_ANGLE = -1000.0;
+const float MAX_INTEGRAL_SPEED = 1000.0;
+const float MIN_INTEGRAL_SPEED = -1000.0;
 
 // ---------- Constants for Motor Control ----------
 const int MIN_ANGLE_PWM = 1300;
@@ -19,23 +38,53 @@ PinName pinAngle = digitalPinToPinName(D2);
 PinName pinSpeed = digitalPinToPinName(D4);
 mbed::PwmOut* pwmAngle = new mbed::PwmOut(pinAngle);
 mbed::PwmOut* pwmSpeed = new mbed::PwmOut(pinSpeed);
-int speed = 0;
-int angle = 90;
-// --------------------------END Proc Setup ----------------------------
 
-////////////////////////
-///       OAS        ///
-////////////////////////
+// --------------------- MPU6050 variable setup -----------------------
+#define T_INT .01 // 10 ms --> .01 s
+MPU6050 mpu;      // MPU 6050 object
 
-// ---------- Ultra-Sonic initial variable declarations ---------------
+// MPU control/status vars
+bool dmpReady = false;  // set true if DMP init was successful
+uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
+uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
+uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
+uint16_t fifoCount;     // count of all bytes currently in FIFO
+uint8_t fifoBuffer[64]; // FIFO storage buffer
 
-const int WINDOW_SIZE = 9;
-const int NUM_SENSORS = 6;
+// other Variables
+float ax = 0;
+float ay = 0;
+float Vx, Vo_x = 0;
+float Vy, Vo_y = 0;
+float Px, Po_x = 0;
+float Py, Po_y = 0;
+
+// Global Variable of actual angle the vehicle is heading and the desired of where it should be going
+int actualAngle = 0;  // The direction the vehicle is acually heading 
+int desiredAngle = 0; // The direction the vehicle is supposed to head
+int actualSpeed = 0;
+int desiredSpeed = 0;
+
+// orientation/motion vars
+Quaternion q;           // [w, x, y, z]         quaternion container
+VectorInt16 aa;         // [x, y, z]            accel sensor measurements
+VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
+VectorFloat gravity;    // [x, y, z]            gravity vector
+float euler[3];         // [psi, theta, phi]    Euler angle container
+float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
+
+// ------------------------ Median Filter variable setup --------------------------
+#define WINDOW_SIZE 9
+#define CRIT_DIST 90
+const int NUM_SENSORS = 6; 
+
 int window[NUM_SENSORS][WINDOW_SIZE];
 int sortedWindow[NUM_SENSORS][WINDOW_SIZE];
 int indices[NUM_SENSORS] = {0}; // Current index in the circular buffer for each sensor
 bool filled[NUM_SENSORS] = {false}; // Flags to check if each sensor's window is filled
+int distances[6] = {0};
 
+// ---------- Ultra-Sonic initial variable declarations ---------------
 
 const int SENSOR_ANGLE_STEP = 30;
 const int MIN_OBSTACLE_DISTANCE = 75;
@@ -58,11 +107,6 @@ const int echoPin_4 = 28;
 const int echoPin_5 = 30;
 const int echoPin_6 = 32;
 
-const int ARRAY_SIZE = 100;
-const int MAX_SPEED = 255;
-const float maxLaserDistance = 1.11;
-const int IRInterval = 500; //How often to check IR and potentially avoid obstacles
-
 // Create sonar class attributed to each indivdual sensor
 // Most left is sonar_1 and Most Right is sonar_6
 NewPing sonar_1(trigPin_g, echoPin_1, USRange);
@@ -72,55 +116,10 @@ NewPing sonar_4(trigPin_o, echoPin_4, USRange);
 NewPing sonar_5(trigPin_b, echoPin_5, USRange);
 NewPing sonar_6(trigPin_p, echoPin_6, USRange);
 
-// ---------- Infra-Red initial variable declarations -----------------
-char buff[4] = {0x80, 0x06, 0x03, 0x77};
-unsigned char data_laser_1[11] = {0}; // Holds sensor data
-unsigned char data_laser_2[11] = {0};
-int distance_IR_1 = 0;
-int distance_IR_2 = 0;
-unsigned long lastIRCheckTime = 0;
-
-// --------------------- MPU6050 variable setup -----------------------
-#define T_INT .01 // 10 ms --> .01 s
-
-MPU6050 mpu;      // MPU 6050 object
-
-// MPU control/status vars
-bool dmpReady = false;  // set true if DMP init was successful
-uint8_t mpuIntStatus;   // holds actual interrupt status byte from MPU
-uint8_t devStatus;      // return status after each device operation (0 = success, !0 = error)
-uint16_t packetSize;    // expected DMP packet size (default is 42 bytes)
-uint16_t fifoCount;     // count of all bytes currently in FIFO
-uint8_t fifoBuffer[64]; // FIFO storage buffer
-
-// other Variables
-float ax = 0;
-float ay = 0;
-float Vx, Vo_x = 0;
-float Vy, Vo_y = 0;
-float Px, Po_x = 0;
-float Py, Po_y = 0;
-float currBC[2] = {0};
-
-int curr_0 = 0; // Heading of vehicle
-
-// orientation/motion vars
-Quaternion q;           // [w, x, y, z]         quaternion container
-VectorInt16 aa;         // [x, y, z]            accel sensor measurements
-VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
-VectorFloat gravity;    // [x, y, z]            gravity vector
-float euler[3];         // [psi, theta, phi]    Euler angle container
-float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-// --------------------------------------------------------------------
-
-int distances[6] = {0};
-int prev_distance[6] = {-1,-1,-1,-1,-1,-1};
-int storedRoute[2] = {0, 0};
-
 // ---------------------------End OAS Setup-----------------------------
 
 // ================================================================
-// ===                  STAY ON PATH FUNCTIONS                  ===
+// ===                   STAY ON PATH HARDWARE                  ===
 // ================================================================
 void check_gyro(){
   if (mpu.dmpGetCurrentFIFOPacket(fifoBuffer)) { // Get the Latest packet 
@@ -153,9 +152,11 @@ void check_gyro(){
     Po_y = Py;
 
     //Update Breadcrumb and send 
-    currBC[0] = sqrt(sq(Vx)+ sq(Vy));
-    currBC[1] = ypr[0] * 180;
-    //Serial.println("YPR: " + String(ypr[0]));
+    actualSpeed = sqrt(sq(Vx)+ sq(Vy));
+    actualAngle = ypr[0] * 180/M_PI;
+
+    Serial.println("actual Angle: "+ String(actualAngle));
+    
     delay(10);
   }
 }
@@ -171,84 +172,51 @@ float getVelocity(float Acc, float Vo){
 // ================================================================
 // ===                  STAY ON PATH FUNCTIONS                  ===
 // ================================================================
+void keepOnPath() {
 
-void keepOnPath(int *desiredAngle, int *desiredSpeed) {
+    // Check the gyroscope and accelerometer to get UP TO DATE values
+    check_gyro();
 
-  // Check the gyroscope and accelerometer
-  check_gyro();
+    // Calculate angle PID control
+    float angleError = desiredAngle - actualAngle;
+    integral_angle += angleError;
 
-  // Read current angle and speed
-  int currentAngle = currBC[1]; // Assuming currBC[1] stores the current angle
-  int currentSpeed = currBC[0]; // Assuming currBC[0] stores the current speed
-
-  // Update current heading
-  int newHeading = curr_0 - 90 + *desiredAngle;
-  ////Serial.println("New Heading : " + String(newHeading));
-
-  if(newHeading <= 180 && newHeading >= -180){
-    curr_0 = curr_0 - 90 + *desiredAngle;
+    Serial.println("desiredAngle: " + String(desiredAngle));
+    Serial.println("actualAngle: " + String(desiredAngle));
+    Serial.println("angle ErrorAngle: " + String(desiredAngle));
+    Serial.println("integralAngle: " + String(desiredAngle));
     
-  }else {
-    curr_0 = abs(newHeading) - 360;
-  }
+    // Integral windup protection for angle
+    if (integral_angle > MAX_INTEGRAL_ANGLE) integral_angle = MAX_INTEGRAL_ANGLE;
+    if (integral_angle < MIN_INTEGRAL_ANGLE) integral_angle = MIN_INTEGRAL_ANGLE;
 
-  Serial.println("Adjusted curr_0 : " + String(curr_0));
-  Serial.println("Current Angle we are going: " + String(currentAngle));
-  if(currentAngle != curr_0){
+    float derivative_angle = angleError - previous_error_angle;
+    int angleAdjustment = kp_angle * angleError + ki_angle * integral_angle + kd_angle * derivative_angle;
+    previous_error_angle = angleError;
 
-    Serial.println("Current Angle we are going: " + String(currentAngle));
+    // Calculate speed PID control
+    float speedError = desiredSpeed - actualSpeed;
+    integral_speed += speedError;
 
-    // Calculate error between desired and current values
-    int angleError = curr_0 - currentAngle;
-    Serial.println("Angle Error: " + String(angleError));
+    // Integral windup protection for speed
+    if (integral_speed > MAX_INTEGRAL_SPEED) integral_speed = MAX_INTEGRAL_SPEED;
+    if (integral_speed < MIN_INTEGRAL_SPEED) integral_speed = MIN_INTEGRAL_SPEED;
 
-    if (angleError > 20){
-      angleError = 20;
+    float derivative_speed = speedError - previous_error_speed;
+    int speedAdjustment = kp_speed * speedError + ki_speed * integral_speed + kd_speed * derivative_speed;
+    previous_error_speed = speedError;
 
-    }
-    // Adjust the angle to turn to
-    *desiredAngle = max(65, min(115, *desiredAngle + angleError));
+    Serial.println("angleAdjustment: " + String(angleAdjustment));
+    Serial.println("-------------------------------------------");
 
-    Serial.println("NEW/ Adjusted angle to turn to: " + String(*desiredAngle));
-    Serial.println("-----------------------------");
-    
-  } else{
-    return;
-  }
+    vehicleAngle(angleAdjustment);
+    vehicleSpeed(30); // keep at constant speed for safety
 
 }
 
 // ================================================================
 // ===                     Ultra Sonic Reroute                  ===
 // ================================================================
-void check_US(int* angle, int* speed){
-  addValue(0, sonar_1.ping_cm());
-  addValue(1, sonar_2.ping_cm());
-  addValue(2, sonar_3.ping_cm());
-  addValue(3, sonar_4.ping_cm());
-  addValue(4, sonar_5.ping_cm());
-  addValue(5, sonar_6.ping_cm());
-  //Serial.print("Check_US ");
-  for (int i = 0; i < NUM_SENSORS; i++) {
-    if (filled[i]) {
-      int median = findMedian(i);
-
-      if(median < 30){ //Emergency Stop
-        *speed = 0;
-        Serial.println("[EMERGENCY STOP]: Sensor ");
-        Serial.print(i);
-        Serial.println(" detected late avoidance ");
-      }
-      distances[i] = median;
-      Serial.print(" Sensor ");
-      Serial.print(i+1);
-      Serial.print(": ");
-      Serial.print(median);
-    }
-  }
-  Serial.println("");
-}
-
 void addValue(int sensor, int value) {
   if(value == 0) return;
   window[sensor][indices[sensor]] = value; // Add the new value to the current index for the sensor
@@ -276,81 +244,77 @@ int findMedian(int sensor) {
   // Return the median value
   return sortedWindow[sensor][4];
 }
+void check_US(int* angle, int* speed){
+  addValue(0, sonar_1.ping_cm());
+  addValue(1, sonar_2.ping_cm());
+  addValue(2, sonar_3.ping_cm());
+  addValue(3, sonar_4.ping_cm());
+  addValue(4, sonar_5.ping_cm());
+  addValue(5, sonar_6.ping_cm());
+  //Serial.print("Check_US ");
+  for (int i = 0; i < NUM_SENSORS; i++) {
+    if (filled[i]) {
+      int median = findMedian(i);
 
-void detectAboveObstacles(int *angle, int *speed) {
-  
-  // Determine which angle for the breadcrumb
-  int SensorIdx[] = {0, -1, 1, -2, 2,-3, 3, -4, 4, -5, 5};
-  
-
-  
-  // Determine which sensor we need to start with
-  int startSens = (*angle) / 30;
-  int dist = (*speed) * 2.5;
-  //Serial.print("StartSens");
-  ////Serial.println(startSens + 1);
-
-  ////Serial.println("Initial Course: ");
-  ////Serial.println("Angle: " + String(*angle) + " " + "Distance: " + String(dist));
-
-  // If the starting angle is between two sensors
-  if (*angle % 30 == 0){
-    //Serial.print("StartSens " + String(startSens + 1) + String(startSens + 2));
-    for(int i = 0; i < 11; i++){
-      int sensor1 = startSens + SensorIdx[i];
-      int sensor2 = startSens + SensorIdx[i] - 1;
-      ////Serial.println(String(sensor1) + String(sensor2));
-      if (sensor1 >= 0 && sensor1 <= 5 && sensor2 >= 0 && sensor2 <= 5 ) {
-        if (distances[sensor1] > dist && distances[sensor2] > dist) {
-          *angle = max(min(*angle + (SensorIdx[i]) * 30, 120), 60);
-          *speed = max(20,*speed * (1 - .05 * abs(i)));
-          ////Serial.println("Found New Course: ");
-          ////Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + "Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
-          return;
-        }
+      
+      distances[i] = median;
+      Serial.print(" Sensor ");
+      Serial.print(i+1);
+      Serial.print(": ");
+      Serial.print(median);
+      if(checkTurn(angle, speed, i, median)){
+        break;
       }
     }
   }
-  //If the starting angle is not
+  Serial.println("");
+}
+bool checkTurn(int* angle, int* speed, int sensor, int distance){
+  if(distance < 30){ //Emergency Stop
+        *speed = 0;
+        Serial.println("[EMERGENCY STOP]: Sensor ");
+        Serial.print(sensor+1);
+        Serial.println(" detected late avoidance ");
+      }
+  if(*angle < 90){
+    if(sensor > 2) return false;
+    if(distance < CRIT_DIST){ //if obstacle detected on left
+      *speed = 0;
+      *angle = 120; //then turn right
+      return true;
+    }
+  }
   else{
-    //Serial.print("StartSens" + String(startSens + 1) );
-    for(int i = 0; i < 11; i++){
-      if ((startSens + SensorIdx[i] >= 0) && (startSens + SensorIdx[i] <= 5)) {
-        ////Serial.println(distances[startSens + SensorIdx[i]]);
-        if (distances[startSens + SensorIdx[i]] > dist) {
-          *angle = max(min(*angle + (SensorIdx[i]) * 30, 120), 60);
-          *speed = min(20, *speed * (1 - .05 * abs(i)));
-          ////Serial.println("Found New Course: ");
-          ////Serial.println("Sensor: "+ String(startSens + SensorIdx[i] + 1) + " Angle: " + String(*angle) + " " + "Speed: " + String(*speed));
-          return;
+    if(*angle > 90){
+      if(sensor < 2) return false;
+      if(distance < CRIT_DIST){ //if obstacle detected on right
+        *speed = 0;
+        *angle = 60; //then turn left
+        return true;
+      }
+    }if(sensor > 0 && sensor < 5){
+      if(distance < CRIT_DIST){
+        if(*speed > 50) *speed = *speed/2;
+        Serial.print("[OBSTACLE AT SENSOR");
+        Serial.print(sensor+1);
+        Serial.print(" ATTEMPTING TURN ] -->");
+        if(sensor <= 2){
+          *angle = 119;
+          Serial.print(*angle);
+        } 
+        else{
+          *angle = 60;
+          Serial.print("60");
         }
+        Serial.println("");
+        return true;
       }
     }
+
+    return false;
+
   }
-  ////Serial.println("No valid avoid found");
-  *speed = 0;
-  return;
-
 }
-
-// ================================================================
-// ===                         Avoid                            ===
-// ================================================================
-
-void avoid(int *angle, int *speed) {
-
-  //Checks the sensors
-  check_US(angle, speed);
-
-  //Check to see if newRoute is a valid route
-  detectAboveObstacles(angle, speed);
-  
-  //Uses the gyroscope to calculate any micro-adjustments we need
-  keepOnPath(angle, speed);
-
-}
-
-// -----------------------End OAS Functions------------------------
 
 // ================================================================
 // ===                      Motor Control                       ===
@@ -364,7 +328,6 @@ void vehicleAngle(int angle) {
     angle = 120;
   }
   int dutyPeriod = int(scale * angle) + offset;
-  Serial.println("Duty period: " + String(dutyPeriod));
   pwmAngle->pulsewidth_us(dutyPeriod);
   delay(1);
 }
@@ -374,9 +337,9 @@ void vehicleSpeed(int speed) {
   analogWrite(pinSpeed,speed);
 }
 
-///////////
-///Setup///
-///////////
+// ================================================================
+// ===                          Set Up                          ===
+// ================================================================
 void setup() {
   // join I2C bus (I2Cdev library doesn't do this automatically)
   #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -427,28 +390,19 @@ void setup() {
       //Serial.print(F("DMP Initialization failed (code "));
   }
 
-  for (int i = 0; i < 6; i++) {
-      for(int j = 0; j < WINDOW_SIZE; j++){
-        window[i][j] = 0;
-      }
-    }
-
-
 }
 
-//////////
-///LOOP///
-//////////
+// ================================================================
+// ===                           Loop                           ===
+// ================================================================
 void loop() {
-
-  speed = 50;
-  angle = 90;
-  int *speedPtr = &speed;
-  int *anglePtr = &angle;
-
-  avoid(anglePtr, speedPtr);
-  vehicleAngle(*anglePtr);
-  vehicleSpeed(*speedPtr);
+  
+  desiredSpeed = 30;
+  for (int i = 0; i < 20; i++){
+    desiredAngle = angles[i];
+    keepOnPath();
+    delay(20);
+  }
 
 }
 
