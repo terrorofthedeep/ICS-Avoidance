@@ -3,7 +3,7 @@
 #include "RPC.h"
 #include "NewPing.h"
 #include "I2Cdev.h"
-#include "MPU6050.h"
+#include "MPU6050_6Axis_MotionApps20.h"
 #include "math.h"
 #include <Servo.h>
 #include "mbed.h"
@@ -29,14 +29,14 @@ int angle = 90;
 
 // ---------- Ultra-Sonic initial variable declarations ---------------
 
-#define WINDOW_SIZE 9
-#define NUM_SENSORS 6
+const int WINDOW_SIZE = 9;
+const int NUM_SENSORS = 6;
 int window[NUM_SENSORS][WINDOW_SIZE];
 int sortedWindow[NUM_SENSORS][WINDOW_SIZE];
 int indices[NUM_SENSORS] = {0}; // Current index in the circular buffer for each sensor
 bool filled[NUM_SENSORS] = {false}; // Flags to check if each sensor's window is filled
 
-const int NUM_SENSORS = 6; 
+
 const int SENSOR_ANGLE_STEP = 30;
 const int MIN_OBSTACLE_DISTANCE = 75;
 const int USRange = 300; // cm
@@ -340,7 +340,7 @@ void detectAboveObstacles(int *angle, int *speed) {
 void avoid(int *angle, int *speed) {
 
   //Checks the sensors
-  check_US();
+  check_US(angle, speed);
 
   //Check to see if newRoute is a valid route
   detectAboveObstacles(angle, speed);
@@ -387,7 +387,7 @@ void setup() {
   #endif
 
   // initialize serial communication
-  serialPort.begin(115200);
+  Serial.begin(115200);
 
   // initialize device
   mpu.initialize();
@@ -426,6 +426,13 @@ void setup() {
       // (if it's going to break, usually the code will be 1)
       //Serial.print(F("DMP Initialization failed (code "));
   }
+
+  for (int i = 0; i < 6; i++) {
+      for(int j = 0; j < WINDOW_SIZE; j++){
+        window[i][j] = 0;
+      }
+    }
+
 
 }
 
