@@ -13,7 +13,7 @@
 #include "mbed.h"
 
 // ----------------------------------------------------------------
-int angles[20] = {45, 45, 45, 45, 65, 65, 45, 0, 20, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45};
+int angles[20] = {45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45};
 
 //---------------- variables for PID control -----------------
 float kp_angle = 1.0, ki_angle = 0.05, kd_angle = 0.01;
@@ -75,7 +75,7 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 
 // ------------------------ Median Filter variable setup --------------------------
 #define WINDOW_SIZE 9
-#define CRIT_DIST 90
+#define CRIT_DIST 75
 const int NUM_SENSORS = 6; 
 
 int window[NUM_SENSORS][WINDOW_SIZE];
@@ -210,7 +210,7 @@ void keepOnPath() {
     Serial.println("-------------------------------------------");
 
     vehicleAngle(angleAdjustment);
-    vehicleSpeed(30); // keep at constant speed for safety
+    vehicleSpeed(60); // keep at constant speed for safety
 
 }
 
@@ -244,7 +244,7 @@ int findMedian(int sensor) {
   // Return the median value
   return sortedWindow[sensor][4];
 }
-void check_US(int* angle, int* speed){
+void check_US(){
   addValue(0, sonar_1.ping_cm());
   addValue(1, sonar_2.ping_cm());
   addValue(2, sonar_3.ping_cm());
@@ -262,48 +262,48 @@ void check_US(int* angle, int* speed){
       Serial.print(i+1);
       Serial.print(": ");
       Serial.print(median);
-      if(checkTurn(angle, speed, i, median)){
+      if(checkTurn(i, median)){
         break;
       }
     }
   }
   Serial.println("");
 }
-bool checkTurn(int* angle, int* speed, int sensor, int distance){
+bool checkTurn(int sensor, int distance){
   if(distance < 30){ //Emergency Stop
-        *speed = 0;
+        desiredSpeed = 0;
         Serial.println("[EMERGENCY STOP]: Sensor ");
         Serial.print(sensor+1);
         Serial.println(" detected late avoidance ");
       }
-  if(*angle < 90){
+  if(desiredAngle < 45){
     if(sensor > 2) return false;
     if(distance < CRIT_DIST){ //if obstacle detected on left
-      *speed = 0;
-      *angle = 120; //then turn right
+      desiredSpeed = 0;
+      desiredAngle = 75; //then turn right
       return true;
     }
   }
   else{
-    if(*angle > 90){
+    if(desiredAngle > 45){
       if(sensor < 2) return false;
       if(distance < CRIT_DIST){ //if obstacle detected on right
-        *speed = 0;
-        *angle = 60; //then turn left
+        desiredSpeed = 0;
+        desiredAngle = 15; //then turn left
         return true;
       }
     }if(sensor > 0 && sensor < 5){
       if(distance < CRIT_DIST){
-        if(*speed > 50) *speed = *speed/2;
+        if(desiredSpeed > 50) desiredSpeed = desiredSpeed/2;
         Serial.print("[OBSTACLE AT SENSOR");
         Serial.print(sensor+1);
         Serial.print(" ATTEMPTING TURN ] -->");
         if(sensor <= 2){
-          *angle = 119;
-          Serial.print(*angle);
+          desiredAngle = 75; //turn right
+          Serial.print(desiredSpeed);
         } 
         else{
-          *angle = 60;
+          desiredAngle = 15; //turn left
           Serial.print("60");
         }
         Serial.println("");
@@ -348,6 +348,12 @@ void setup() {
   #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
       Fastwire::setup(400, true);
   #endif
+
+  for(int i = 0; i < NUM_SENSORS; i++){
+    for(int j =0; j < WINDOW_SIZE; j++){
+      window[i][j] = 0;
+    }
+  }
 
   // initialize serial communication
   Serial.begin(115200);
@@ -397,11 +403,13 @@ void setup() {
 // ================================================================
 void loop() {
   
-  desiredSpeed = 30;
+  desiredSpeed = 60;
   for (int i = 0; i < 20; i++){
     desiredAngle = angles[i];
-    keepOnPath();
-    delay(20);
+    check_US();
+    //delay(10);
+    //keepOnPath();
+    //delay(20);
   }
 
 }

@@ -66,3 +66,5 @@ void updateYawPitchRoll(float deltaYaw, float deltaPitch, float deltaRoll);
 void updateVelocity(float deltaVx, float deltaVy);
 
 void avoid(int *angle, int *speed);
+
+checkTurn(int* angle, int* speed, int sensor, median)
