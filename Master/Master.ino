@@ -13,7 +13,7 @@
 #include "mbed.h"
 
 // ----------------------------------------------------------------
-int angles[20] = {45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45};
+int angles[20] = {45, 45, 45, 45, 45, 45, 20, 20, 20, 45, 70, 70, 70, 45, 45, 45, 45, 45, 45, 45};
 
 //---------------- variables for PID control -----------------
 float kp_angle = 1.0, ki_angle = 0.05, kd_angle = 0.01;
@@ -75,7 +75,7 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 
 // ------------------------ Median Filter variable setup --------------------------
 #define WINDOW_SIZE 9
-#define CRIT_DIST 75
+#define CRIT_DIST 110
 const int NUM_SENSORS = 6; 
 
 int window[NUM_SENSORS][WINDOW_SIZE];
@@ -210,7 +210,7 @@ void keepOnPath() {
     Serial.println("-------------------------------------------");
 
     vehicleAngle(angleAdjustment);
-    vehicleSpeed(60); // keep at constant speed for safety
+    vehicleSpeed(30); // keep at constant speed for safety
 
 }
 
@@ -218,7 +218,7 @@ void keepOnPath() {
 // ===                     Ultra Sonic Reroute                  ===
 // ================================================================
 void addValue(int sensor, int value) {
-  if(value == 0) return;
+  if(value == 0) value = 400;
   window[sensor][indices[sensor]] = value; // Add the new value to the current index for the sensor
   indices[sensor] = (indices[sensor] + 1) % WINDOW_SIZE; // Update index in a circular manner
   if (indices[sensor] == 0) {
@@ -244,7 +244,8 @@ int findMedian(int sensor) {
   // Return the median value
   return sortedWindow[sensor][4];
 }
-void check_US(){
+
+bool check_US(){
   addValue(0, sonar_1.ping_cm());
   addValue(1, sonar_2.ping_cm());
   addValue(2, sonar_3.ping_cm());
@@ -263,19 +264,24 @@ void check_US(){
       Serial.print(": ");
       Serial.print(median);
       if(checkTurn(i, median)){
-        break;
+        Serial.println("");
+        return true;
       }
+      
     }
+    //desiredSpeed = 30;
   }
   Serial.println("");
+  return false;
 }
+
 bool checkTurn(int sensor, int distance){
-  if(distance < 30){ //Emergency Stop
-        desiredSpeed = 0;
-        Serial.println("[EMERGENCY STOP]: Sensor ");
-        Serial.print(sensor+1);
-        Serial.println(" detected late avoidance ");
-      }
+  if(distance < 50){ //Emergency Stop
+    vehicleSpeed(0);
+    Serial.println("[EMERGENCY STOP]: Sensor ");
+    Serial.print(sensor+1);
+    Serial.println(" detected late avoidance ");
+  }
   if(desiredAngle < 45){
     if(sensor > 2) return false;
     if(distance < CRIT_DIST){ //if obstacle detected on left
@@ -294,18 +300,18 @@ bool checkTurn(int sensor, int distance){
       }
     }if(sensor > 0 && sensor < 5){
       if(distance < CRIT_DIST){
+        //
         if(desiredSpeed > 50) desiredSpeed = desiredSpeed/2;
         Serial.print("[OBSTACLE AT SENSOR");
         Serial.print(sensor+1);
         Serial.print(" ATTEMPTING TURN ] -->");
         if(sensor <= 2){
           desiredAngle = 75; //turn right
-          Serial.print(desiredSpeed);
         } 
         else{
           desiredAngle = 15; //turn left
-          Serial.print("60");
         }
+        Serial.print(desiredAngle);
         Serial.println("");
         return true;
       }
@@ -403,14 +409,11 @@ void setup() {
 // ================================================================
 void loop() {
   
-  desiredSpeed = 60;
+  desiredSpeed = 30;
   for (int i = 0; i < 20; i++){
-    desiredAngle = angles[i];
+    desiredAngle = 45;//angles[i];
     check_US();
-    //delay(10);
-    //keepOnPath();
-    //delay(20);
+    keepOnPath();
   }
 
 }
-
