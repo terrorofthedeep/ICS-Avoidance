@@ -412,8 +412,9 @@ void loop() {
   desiredSpeed = 30;
   for (int i = 0; i < 20; i++){
     desiredAngle = 45;//angles[i];
-    check_US();
-    keepOnPath();
+    if(!check_US()) {
+      keepOnPath();
+    }
   }
 
 }
