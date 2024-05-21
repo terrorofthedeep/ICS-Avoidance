@@ -12,8 +12,12 @@
 #include <Servo.h>
 #include "mbed.h"
 
+
 // ----------------------------------------------------------------
-int angles[20] = {45, 45, 45, 45, 45, 45, 20, 20, 20, 45, 70, 70, 70, 45, 45, 45, 45, 45, 45, 45};
+int forward[20] = {45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45, 45};
+int r_turn[20] = {55, 55, 55, 65, 65, 65, 65, 65, 65, 65, 65, 75, 75, 65, 55, 55, 55, 45, 45, 45};
+int l_turn[20] = {35, 35, 35, 25, 25, 25, 25, 25, 25, 25, 25, 15, 15, 25, 35, 35, 35, 45, 45, 45};
+bool flagStop = true;
 
 //---------------- variables for PID control -----------------
 float kp_angle = 1.0, ki_angle = 0.05, kd_angle = 0.01;
@@ -74,8 +78,10 @@ float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 // ------------------------ Median Filter variable setup --------------------------
-#define WINDOW_SIZE 9
+#define WINDOW_SIZE 5
 #define CRIT_DIST 110
+#define ST 50
+#define E_STOP 35
 const int NUM_SENSORS = 6; 
 
 int window[NUM_SENSORS][WINDOW_SIZE];
@@ -210,7 +216,7 @@ void keepOnPath() {
     Serial.println("-------------------------------------------");
 
     vehicleAngle(angleAdjustment);
-    vehicleSpeed(30); // keep at constant speed for safety
+    //vehicleSpeed(40); // keep at constant speed for safety
 
 }
 
@@ -276,50 +282,30 @@ bool check_US(){
 }
 
 bool checkTurn(int sensor, int distance){
-  if(distance < 50){ //Emergency Stop
+  if(distance < E_STOP){ //Emergency Stop
     vehicleSpeed(0);
     Serial.println("[EMERGENCY STOP]: Sensor ");
     Serial.print(sensor+1);
     Serial.println(" detected late avoidance ");
   }
-  if(desiredAngle < 45){
-    if(sensor > 2) return false;
-    if(distance < CRIT_DIST){ //if obstacle detected on left
-      desiredSpeed = 0;
-      desiredAngle = 75; //then turn right
+  if(sensor > 0 && sensor < 5){
+    if(distance < CRIT_DIST){
+      //Check ahead
+      if(desiredSpeed > 50) desiredSpeed = desiredSpeed/2;
+      Serial.print("[OBSTACLE AT SENSOR");
+      Serial.print(sensor+1);
+      Serial.print(" ATTEMPTING TURN ] -->");
+      if(sensor <= 2) desiredAngle = 75; //turn right
+      else desiredAngle = 15; //turn left
       return true;
     }
   }
-  else{
-    if(desiredAngle > 45){
-      if(sensor < 2) return false;
-      if(distance < CRIT_DIST){ //if obstacle detected on right
-        desiredSpeed = 0;
-        desiredAngle = 15; //then turn left
+  if(distance < (CRIT_DIST/2) ){
+        if(sensor == 0) desiredAngle = 75; //turn right
+        else desiredAngle = 15; //turn right 
         return true;
-      }
-    }if(sensor > 0 && sensor < 5){
-      if(distance < CRIT_DIST){
-        //
-        if(desiredSpeed > 50) desiredSpeed = desiredSpeed/2;
-        Serial.print("[OBSTACLE AT SENSOR");
-        Serial.print(sensor+1);
-        Serial.print(" ATTEMPTING TURN ] -->");
-        if(sensor <= 2){
-          desiredAngle = 75; //turn right
-        } 
-        else{
-          desiredAngle = 15; //turn left
-        }
-        Serial.print(desiredAngle);
-        Serial.println("");
-        return true;
-      }
-    }
-
-    return false;
-
   }
+  return false;
 }
 
 // ================================================================
@@ -409,12 +395,39 @@ void setup() {
 // ================================================================
 void loop() {
   
-  desiredSpeed = 30;
-  for (int i = 0; i < 20; i++){
-    desiredAngle = 45;//angles[i];
-    if(!check_US()) {
+  desiredSpeed = 40;
+  if(flagStop){
+    // Straight
+    for (int i = 0; i < 100; i++){
+      desiredAngle = 45;
+      check_US();
+      //vehicleAngle(desiredAngle + 45);
       keepOnPath();
+      vehicleSpeed(desiredSpeed);
     }
+
+    // Right
+    for (int i = 0; i < 50; i++){
+      desiredAngle = 75;
+      check_US();
+      //vehicleAngle(desiredAngle + 45);
+      keepOnPath();
+      vehicleSpeed(desiredSpeed);
+    }
+
+    // Straight
+    for (int i = 0; i < 30; i++){
+      desiredAngle = 45;
+      check_US();
+      //vehicleAngle(desiredAngle + 45);
+      keepOnPath();
+      vehicleSpeed(desiredSpeed);
+    }
+
   }
+
+  flagStop = false;
+  desiredSpeed = 0;
+  vehicleSpeed(0);
 
 }
